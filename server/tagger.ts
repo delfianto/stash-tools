@@ -1,6 +1,7 @@
 import { makeClient, type GQLClient } from "./client.ts";
 import type { Config } from "./config.ts";
 import type { TagResult } from "@shared/types";
+import { applyTagRules, type TagRule } from "./tagRules.ts";
 import pino from "pino";
 
 const log = pino({ name: "tagger" });
@@ -45,7 +46,7 @@ query FindScenesPage($filter: FindFilterType!) {
       stash_ids { stash_id endpoint }
       tags { id name }
       studio { name }
-      performers { name }
+      performers { name country }
     }
   }
 }
@@ -59,7 +60,7 @@ query FindScene($id: ID!) {
     stash_ids { stash_id endpoint }
     tags { id name }
     studio { name }
-    performers { name }
+    performers { name country }
   }
 }
 `;
@@ -135,7 +136,7 @@ interface StashScene {
   stash_ids?: Array<{ stash_id: string; endpoint: string }>;
   tags?: Array<{ id: string; name: string }>;
   studio?: { name: string } | null;
-  performers?: Array<{ name: string }>;
+  performers?: Array<{ name: string; country?: string | null }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,10 +231,17 @@ export class AutoTagger {
     localTagMap: Map<string, string>,
     tagAncestors: Map<string, Set<string>>,
     dryRun: boolean,
+    rules: TagRule[] = [],
   ): Promise<TagResult> {
     const sceneId = String(scene.id);
     const title = scene.title ?? `Scene ${sceneId}`;
     const stashdbId = this.stashdbIdFor(scene);
+    const studio = scene.studio?.name ?? "";
+    const performers = (scene.performers ?? []).map((p) => p.name);
+    const performerCountries = (scene.performers ?? [])
+      .map((p) => p.country)
+      .filter((c): c is string => !!c);
+    const performerCount = (scene.performers ?? []).length;
 
     if (!stashdbId) {
       return {
@@ -243,6 +251,8 @@ export class AutoTagger {
         matchedTags: [],
         filteredOut: [],
         newTags: [],
+        removedTags: [],
+        ruleLog: [],
         updated: false,
         error: "No StashDB ID",
       };
@@ -261,6 +271,8 @@ export class AutoTagger {
         matchedTags: [],
         filteredOut: [],
         newTags: [],
+        removedTags: [],
+        ruleLog: [],
         updated: false,
         error: msg,
       };
@@ -273,11 +285,33 @@ export class AutoTagger {
     const matched = filterRedundantParents(rawMatched, tagAncestors);
     const filteredOut = rawMatched.filter((t) => !matched.includes(t)).sort();
 
-    // 3. Only add tags not already on the scene
+    // 3. Apply declarative tag rules against the union of existing + matched tags.
+    //    Rules see the full picture so conditions like "has Lesbian AND mixed-gender tag"
+    //    fire correctly even when one tag is existing and the other is incoming.
     const existingNames = new Set((scene.tags ?? []).map((t) => t.name));
-    const newTagNames = matched.filter((t) => !existingNames.has(t)).sort();
+    const combined = [...new Set([...existingNames, ...matched])];
+    const {
+      tags: adjusted,
+      removed: removedByRules,
+      ruleLog,
+    } = applyTagRules(
+      combined,
+      studio,
+      performers,
+      performerCountries,
+      performerCount,
+      rules,
+      localTagNames,
+    );
 
-    if (!newTagNames.length) {
+    // 4. Compute what actually changes on the scene
+    const adjustedSet = new Set(adjusted);
+    const newTagNames = adjusted.filter((t) => !existingNames.has(t)).sort();
+    const removedTagNames = [...existingNames]
+      .filter((t) => removedByRules.has(t) && !adjustedSet.has(t))
+      .sort();
+
+    if (!newTagNames.length && !removedTagNames.length) {
       return {
         sceneId,
         sceneTitle: title,
@@ -285,6 +319,8 @@ export class AutoTagger {
         matchedTags: matched,
         filteredOut,
         newTags: [],
+        removedTags: [],
+        ruleLog,
         updated: false,
         error: "",
       };
@@ -298,19 +334,27 @@ export class AutoTagger {
         matchedTags: matched,
         filteredOut,
         newTags: newTagNames,
+        removedTags: removedTagNames,
+        ruleLog,
         updated: false,
         error: "",
       };
     }
 
-    // 4. Merge — never remove existing tags
-    const existingIds = new Set((scene.tags ?? []).map((t) => t.id));
+    // 5. Build final tag ID list: existing + new additions, minus rule removals
+    const removedIds = new Set(
+      (scene.tags ?? []).filter((t) => removedByRules.has(t.name)).map((t) => t.id),
+    );
+    const existingIds = (scene.tags ?? []).map((t) => t.id).filter((id) => !removedIds.has(id));
     const newIds = newTagNames.map((name) => localTagMap.get(name)!);
     const finalIds = [...new Set([...existingIds, ...newIds])];
 
     try {
       await this.callGQL(MUTATION_SCENE_UPDATE_TAGS, { id: sceneId, tag_ids: finalIds });
-      log.info({ sceneId, added: newTagNames, filteredOut }, "scene_tagged");
+      log.info(
+        { sceneId, added: newTagNames, removed: removedTagNames, filteredOut },
+        "scene_tagged",
+      );
       return {
         sceneId,
         sceneTitle: title,
@@ -318,6 +362,8 @@ export class AutoTagger {
         matchedTags: matched,
         filteredOut,
         newTags: newTagNames,
+        removedTags: removedTagNames,
+        ruleLog,
         updated: true,
         error: "",
       };
@@ -331,6 +377,8 @@ export class AutoTagger {
         matchedTags: matched,
         filteredOut,
         newTags: newTagNames,
+        removedTags: removedTagNames,
+        ruleLog,
         updated: false,
         error: msg,
       };

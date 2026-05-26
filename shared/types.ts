@@ -45,6 +45,8 @@ export interface TagResult {
   matchedTags: string[];
   filteredOut: string[];
   newTags: string[];
+  removedTags: string[];
+  ruleLog: string[];
   updated: boolean;
   error: string;
 }
@@ -66,6 +68,8 @@ export interface SseResult {
   matched: string[];
   filtered_out: string[];
   new_tags: string[];
+  removed_tags: string[];
+  rule_log: string[];
   updated: boolean;
   dry_run: boolean;
   error: string;

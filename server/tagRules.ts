@@ -26,7 +26,7 @@ interface RuleCondition {
   studio?: { any?: string[] };
   performers?: { any?: string[] };
   // ISO 3166-1 alpha-2 country codes, e.g. "GB", "DE", "FR"
-  performer_country?: { any?: string[] };
+  performer_country?: { any?: string[]; none?: string[] };
   // Numeric comparisons against the scene's performer count
   performer_count?: PerformerCountCondition;
 }
@@ -87,9 +87,12 @@ function conditionMatches(
     if (!cond.performers.any.some((p) => pset.has(p))) return false;
   }
 
-  if (cond.performer_country?.any?.length) {
+  if (cond.performer_country) {
     const cset = new Set(performerCountries);
-    if (!cond.performer_country.any.some((c) => cset.has(c))) return false;
+    if (cond.performer_country.any?.length && !cond.performer_country.any.some((c) => cset.has(c)))
+      return false;
+    if (cond.performer_country.none?.length && cond.performer_country.none.some((c) => cset.has(c)))
+      return false;
   }
 
   if (cond.performer_count) {

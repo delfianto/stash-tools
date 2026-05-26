@@ -1,0 +1,190 @@
+[
+  {
+    "description": "Lesbian = female-only; downgrade to Lesbian Action in mixed-gender scenes",
+    "if": {
+      "tags": {
+        "any": [
+          "Threesome (BGG)",
+          "Foursome (BGGG)",
+          "Fivesome (BGGGG)",
+          "Sixsome (BBBBGG)",
+          "Sixsome (BBBGGG)"
+        ],
+        "all": ["Lesbian"]
+      }
+    },
+    "then": {
+      "remove": ["Lesbian"],
+      "add": ["Lesbian Action"]
+    }
+  },
+  {
+    "description": "BBC implies Interracial",
+    "if": {
+      "tags": {
+        "any": ["Big Black Cock (BBC)"]
+      }
+    },
+    "then": {
+      "add": ["Interracial"]
+    }
+  },
+  {
+    "description": "Blacked and Blacked Raw are Interracial/BBC studios",
+    "if": {
+      "studio": {
+        "any": ["Blacked", "Blacked Raw"]
+      }
+    },
+    "then": {
+      "add": ["Interracial", "Big Black Cock (BBC)"]
+    }
+  },
+  {
+    "description": "European performer → tag scene as European",
+    "if": {
+      "performer_country": {
+        "any": [
+          "AL",
+          "AD",
+          "AT",
+          "BY",
+          "BE",
+          "BA",
+          "BG",
+          "HR",
+          "CY",
+          "CZ",
+          "DK",
+          "EE",
+          "FI",
+          "FR",
+          "DE",
+          "GR",
+          "HU",
+          "IS",
+          "IE",
+          "IT",
+          "XK",
+          "LV",
+          "LI",
+          "LT",
+          "LU",
+          "MT",
+          "MD",
+          "MC",
+          "ME",
+          "NL",
+          "MK",
+          "NO",
+          "PL",
+          "PT",
+          "RO",
+          "RU",
+          "SM",
+          "RS",
+          "SK",
+          "SI",
+          "ES",
+          "SE",
+          "CH",
+          "UA",
+          "GB",
+          "VA"
+        ]
+      }
+    },
+    "then": {
+      "add": ["European"]
+    }
+  },
+  {
+    "description": "Japanese performer → tag scene as Japanese",
+    "if": {
+      "performer_country": {
+        "any": ["JP"]
+      }
+    },
+    "then": {
+      "add": ["Japanese"]
+    }
+  },
+  {
+    "description": "Known girl-girl studios → ensure Lesbian tag (not Lesbian Action)",
+    "if": {
+      "studio": {
+        "any": [
+          "A Girl Knows",
+          "All Girl Massage",
+          "Girl Girl XXX",
+          "Girlfriends Films",
+          "GirlsOnlyPorn",
+          "Girlsway",
+          "Viv Thomas",
+          "When Girls Play"
+        ]
+      },
+      "tags": {
+        "none": [
+          "Threesome (BGG)",
+          "Foursome (BGGG)",
+          "Fivesome (BGGGG)",
+          "Sixsome (BBBBGG)",
+          "Sixsome (BBBGGG)"
+        ]
+      }
+    },
+    "then": {
+      "remove": ["Lesbian Action"],
+      "add": ["Lesbian"]
+    }
+  },
+  {
+    "description": "Lesbian Twosome",
+    "if": {
+      "tags": { "any": ["Lesbian"] },
+      "performer_count": { "eq": 2 }
+    },
+    "then": { "add": ["Twosome (Lesbian)"] }
+  },
+  {
+    "description": "Lesbian Threesome",
+    "if": {
+      "tags": { "any": ["Lesbian"] },
+      "performer_count": { "eq": 3 }
+    },
+    "then": { "add": ["Threesome (Lesbian)"] }
+  },
+  {
+    "description": "Lesbian Foursome",
+    "if": {
+      "tags": { "any": ["Lesbian"] },
+      "performer_count": { "eq": 4 }
+    },
+    "then": { "add": ["Foursome (Lesbian)"] }
+  },
+  {
+    "description": "Lesbian Fivesome",
+    "if": {
+      "tags": { "any": ["Lesbian"] },
+      "performer_count": { "eq": 5 }
+    },
+    "then": { "add": ["Fivesome (Lesbian)"] }
+  },
+  {
+    "description": "Lesbian Sixsome",
+    "if": {
+      "tags": { "any": ["Lesbian"] },
+      "performer_count": { "eq": 6 }
+    },
+    "then": { "add": ["Sixsome (Lesbian)"] }
+  },
+  {
+    "description": "Lesbian Group Sex (3+ performers)",
+    "if": {
+      "tags": { "any": ["Lesbian"] },
+      "performer_count": { "gt": 2 }
+    },
+    "then": { "add": ["Group Sex (Lesbian)"] }
+  }
+]

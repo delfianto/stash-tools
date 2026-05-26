@@ -20,6 +20,9 @@ const schema = z.object({
   STASH_API_KEY_DB: z.string().optional(),
   STASH_DB_ENDPOINT: z.string().url().default("https://stashdb.org/graphql"),
 
+  // Tagger
+  STASH_TAG_RULES_FILE: z.string().default("./tag-rules.json"),
+
   // Renamer
   RENAMER_SOURCE: z.string().default(""),
   RENAMER_DEST: z.string().default(""),
@@ -38,6 +41,7 @@ const env = schema.parse(process.env);
 export const config = {
   // Stash connection
   scheme: env.STASH_SCHEME,
+  tagRulesFile: env.STASH_TAG_RULES_FILE,
   host: env.STASH_HOST,
   port: env.STASH_PORT,
   apiKey: env.STASH_API_KEY,

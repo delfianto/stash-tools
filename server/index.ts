@@ -6,6 +6,7 @@ import pino from "pino";
 import { config } from "./config.ts";
 import { StashRenamer } from "./renamer.ts";
 import { AutoTagger } from "./tagger.ts";
+import { loadTagRules } from "./tagRules.ts";
 import type { Candidate } from "@shared/types";
 
 const log = pino({ name: "server" });
@@ -168,6 +169,8 @@ app.post("/tagger/tag", async (c) => {
       return;
     }
 
+    // Load rules fresh each run so edits to tag-rules.json take effect immediately
+    const rules = loadTagRules(config.tagRulesFile);
     const localTagNames = new Set(localTagMap.keys());
     let updated = 0;
     let errors = 0;
@@ -186,6 +189,8 @@ app.post("/tagger/tag", async (c) => {
             matched: [],
             filtered_out: [],
             new_tags: [],
+            removed_tags: [],
+            rule_log: [],
             updated: false,
             dry_run: dryRun,
             error: "Scene not found",
@@ -200,9 +205,10 @@ app.post("/tagger/tag", async (c) => {
         localTagMap,
         tagAncestors,
         dryRun,
+        rules,
       );
 
-      if (result.newTags.length) updated++;
+      if (result.newTags.length || result.removedTags.length) updated++;
       if (result.error) errors++;
 
       await stream.writeSSE({
@@ -213,6 +219,8 @@ app.post("/tagger/tag", async (c) => {
           matched: result.matchedTags,
           filtered_out: result.filteredOut,
           new_tags: result.newTags,
+          removed_tags: result.removedTags,
+          rule_log: result.ruleLog,
           updated: result.updated,
           dry_run: dryRun,
           error: result.error,

@@ -242,7 +242,7 @@
     "description": "Lesbian Group Sex (3+ performers)",
     "if": {
       "tags": { "any": ["Lesbian"] },
-      "performer_count": { "gt": 2 }
+      "performer_count": { "gt": 7 }
     },
     "then": { "add": ["Group Sex (Lesbian)"] }
   }

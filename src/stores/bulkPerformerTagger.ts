@@ -9,6 +9,10 @@ export const useBulkPerformerTaggerStore = defineStore("bulkPerformerTagger", ()
   const countryFilter = ref("");
   const ethnicityFilter = ref("");
 
+  // Filter options (all performers, not just current page)
+  const availableCountries = ref<string[]>([]);
+  const availableEthnicities = ref<string[]>([]);
+
   // Run state
   const running = ref(false);
   const stopping = ref(false);
@@ -120,10 +124,23 @@ export const useBulkPerformerTaggerStore = defineStore("bulkPerformerTagger", ()
     stopping.value = true;
   }
 
+  async function loadMeta() {
+    try {
+      const resp = await fetch("/api/performer-tagger/meta");
+      const data = await resp.json();
+      availableCountries.value = (data.countries as string[]) ?? [];
+      availableEthnicities.value = (data.ethnicities as string[]) ?? [];
+    } catch {
+      // silently ignore — filters just won't be populated
+    }
+  }
+
   return {
     dryRun,
     countryFilter,
     ethnicityFilter,
+    availableCountries,
+    availableEthnicities,
     running,
     stopping,
     currentPage,
@@ -136,5 +153,6 @@ export const useBulkPerformerTaggerStore = defineStore("bulkPerformerTagger", ()
     start,
     stop,
     reset,
+    loadMeta,
   };
 });

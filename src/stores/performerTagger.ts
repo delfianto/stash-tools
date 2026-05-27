@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { readSSE } from "@/utils/readSSE";
 import type { Performer, PerformerStatus } from "@shared/types";
 
@@ -123,6 +123,11 @@ export const usePerformerTaggerStore = defineStore("performerTagger", () => {
     }
   }
 
+  watch([countryFilter, ethnicityFilter], () => {
+    page.value = 1;
+    loadPerformers(1);
+  });
+
   function toggleSelect(id: string) {
     if (selected.value.has(id)) selected.value.delete(id);
     else selected.value.add(id);
@@ -131,6 +136,26 @@ export const usePerformerTaggerStore = defineStore("performerTagger", () => {
   function selectAll(val: boolean) {
     if (val) selected.value = new Set(performers.value.map((p) => p.id));
     else selected.value = new Set();
+  }
+
+  const allOnPageSelected = computed(
+    () => performers.value.length > 0 && performers.value.every((p) => selected.value.has(p.id)),
+  );
+
+  const selectingAllPages = ref(false);
+
+  async function selectAllPages() {
+    selectingAllPages.value = true;
+    try {
+      const params = new URLSearchParams();
+      if (countryFilter.value) params.set("country", countryFilter.value);
+      if (ethnicityFilter.value) params.set("ethnicity", ethnicityFilter.value);
+      const resp = await fetch(`/api/performer-tagger/performer-ids?${params}`);
+      const data = await resp.json();
+      selected.value = new Set((data.ids as string[]) ?? []);
+    } finally {
+      selectingAllPages.value = false;
+    }
   }
 
   return {
@@ -153,5 +178,8 @@ export const usePerformerTaggerStore = defineStore("performerTagger", () => {
     tagSelected,
     toggleSelect,
     selectAll,
+    allOnPageSelected,
+    selectingAllPages,
+    selectAllPages,
   };
 });

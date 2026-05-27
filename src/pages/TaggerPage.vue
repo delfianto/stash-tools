@@ -12,7 +12,7 @@ const tagsOpen = ref(false);
 
 onMounted(() => {
   store.loadTags();
-  store.loadScenes(1);
+  if (!store.scenes.length) store.loadScenes(store.page);
 });
 
 const allChecked = computed(() => {
@@ -200,6 +200,37 @@ const filterActive = computed(() => store.studioFilter || store.performerFilter)
       >
         {{ store.progressText }}
       </span>
+    </div>
+
+    <!-- Select-all-pages banner -->
+    <div
+      v-if="store.allOnPageSelected && store.total > store.scenes.length && !store.tagging"
+      class="flex items-center justify-between mb-3 px-4 py-2 rounded-lg"
+      style="
+        background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+        font-size: 12px;
+      "
+    >
+      <span style="color: var(--color-text-2)">
+        All {{ store.scenes.filter((s) => s.stashdbId).length }} on this page selected.
+      </span>
+      <button
+        @click="store.selectAllPages()"
+        :disabled="store.selectingAllPages"
+        style="
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 12px;
+          font-family: var(--font-sans);
+          padding: 0;
+          white-space: nowrap;
+        "
+        :style="{ color: store.selectingAllPages ? 'var(--color-muted)' : 'var(--color-accent)' }"
+      >
+        {{ store.selectingAllPages ? "Loading…" : `Select all ${store.total} scenes →` }}
+      </button>
     </div>
 
     <div

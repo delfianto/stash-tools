@@ -4,6 +4,7 @@ import { toast } from "vue-sonner";
 import { Users, ChevronLeft, ChevronRight, ExternalLink } from "lucide-vue-next";
 import PageHeader from "@/components/PageHeader.vue";
 import FilterSelect from "@/components/FilterSelect.vue";
+import StatusBadge from "@/components/StatusBadge.vue";
 import { usePerformerTaggerStore } from "@/stores/performerTagger";
 
 const store = usePerformerTaggerStore();
@@ -356,34 +357,11 @@ const CUP_COLOR: Record<string, string> = {
 
               <!-- Status -->
               <td style="padding: 8px 12px; min-width: 180px">
-                <span
-                  v-if="store.statuses.get(p.id)?.variant === 'loading'"
-                  style="color: var(--color-muted); font-size: 12px; font-family: var(--font-mono)"
-                >
-                  …
-                </span>
-                <template v-else-if="store.statuses.has(p.id)">
-                  <span
-                    :style="{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px',
-                      color:
-                        store.statuses.get(p.id)!.variant === 'ok'
-                          ? 'var(--color-ok)'
-                          : store.statuses.get(p.id)!.variant === 'error'
-                            ? 'var(--color-err)'
-                            : store.statuses.get(p.id)!.variant === 'dry'
-                              ? 'var(--color-accent)'
-                              : 'var(--color-muted)',
-                    }"
-                  >
-                    <template v-if="store.statuses.get(p.id)!.variant === 'ok'">✓ </template>
-                    <template v-else-if="store.statuses.get(p.id)!.variant === 'error'"
-                      >✗
-                    </template>
-                    <template v-else-if="store.statuses.get(p.id)!.variant === 'dry'">→ </template>
-                    {{ store.statuses.get(p.id)!.text }}
-                  </span>
+                <template v-if="store.statuses.has(p.id)">
+                  <StatusBadge
+                    :variant="store.statuses.get(p.id)!.variant"
+                    :text="store.statuses.get(p.id)!.text"
+                  />
                 </template>
                 <span v-else style="color: var(--color-border-2)">—</span>
               </td>

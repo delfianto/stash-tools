@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{
-  variant: "ok" | "error" | "dry" | "muted" | "pending";
+  variant: "ok" | "error" | "dry" | "muted" | "pending" | "loading";
   text: string;
 }>();
 </script>
@@ -23,6 +23,6 @@ defineProps<{
     <template v-if="variant === 'ok'">✓ </template>
     <template v-else-if="variant === 'error'">✗ </template>
     <template v-else-if="variant === 'dry'">→ </template>
-    {{ text }}
+    {{ text || (variant === "loading" ? "…" : "") }}
   </span>
 </template>

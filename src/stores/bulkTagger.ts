@@ -1,14 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-
-export interface LogEntry {
-  page: number;
-  sceneId: string;
-  title: string;
-  variant: "ok" | "error" | "dry" | "muted";
-  text: string;
-  filtered?: string[];
-}
+import { readSSE } from "@/utils/readSSE";
+import type { BatchLogEntry } from "@/components/BatchProgress.vue";
 
 export const useBulkTaggerStore = defineStore("bulkTagger", () => {
   // Config
@@ -28,10 +21,9 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
   const processedScenes = ref(0);
   const taggedScenes = ref(0);
   const errorCount = ref(0);
-  const skippedScenes = ref(0); // no StashDB ID
+  const skippedScenes = ref(0);
 
-  // Live log (last N entries, newest first)
-  const log = ref<LogEntry[]>([]);
+  const log = ref<BatchLogEntry[]>([]);
   const MAX_LOG = 200;
 
   const progressPct = computed(() => {
@@ -50,7 +42,7 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
     log.value = [];
   }
 
-  function pushLog(entry: LogEntry) {
+  function pushLog(entry: BatchLogEntry) {
     log.value.unshift(entry);
     if (log.value.length > MAX_LOG) log.value.length = MAX_LOG;
   }
@@ -63,66 +55,52 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
     const resp = await fetch("/tagger/tag", { method: "POST", body: form });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-    const reader = resp.body!.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
+    await readSSE(resp, (d) => {
+      if (d["type"] !== "result") return;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const chunks = buf.split("\n\n");
-      buf = chunks.pop() ?? "";
+      processedScenes.value++;
+      const id = String(d["scene_id"]);
+      const title = String(d["scene_title"] ?? id);
+      const newTags = (d["new_tags"] as string[] | undefined) ?? [];
+      const filteredOut = (d["filtered_out"] as string[] | undefined) ?? [];
+      const error = d["error"] as string | undefined;
 
-      for (const chunk of chunks) {
-        const line = chunk.split("\n").find((l) => l.startsWith("data: "));
-        if (!line) continue;
-        const d = JSON.parse(line.slice(6));
-
-        if (d.type === "result") {
-          processedScenes.value++;
-          const sceneId = String(d.scene_id);
-          const title = String(d.scene_title ?? sceneId);
-
-          if (d.error && d.error !== "No StashDB ID") {
-            errorCount.value++;
-            pushLog({ page, sceneId, title, variant: "error", text: d.error });
-          } else if (d.error === "No StashDB ID") {
-            skippedScenes.value++;
-            // not logged — these shouldn't appear since we only send stashdb-linked scenes
-          } else if (!d.new_tags?.length) {
-            pushLog({
-              page,
-              sceneId,
-              title,
-              variant: "muted",
-              text: "up to date",
-              filtered: d.filtered_out ?? [],
-            });
-          } else if (dryRun.value) {
-            taggedScenes.value++;
-            pushLog({
-              page,
-              sceneId,
-              title,
-              variant: "dry",
-              text: d.new_tags.join(", "),
-              filtered: d.filtered_out ?? [],
-            });
-          } else {
-            taggedScenes.value++;
-            pushLog({
-              page,
-              sceneId,
-              title,
-              variant: "ok",
-              text: d.new_tags.join(", "),
-              filtered: d.filtered_out ?? [],
-            });
-          }
-        }
+      if (error && error !== "No StashDB ID") {
+        errorCount.value++;
+        pushLog({ id, title, variant: "error", text: error, page });
+      } else if (error === "No StashDB ID") {
+        skippedScenes.value++;
+      } else if (!newTags.length) {
+        pushLog({
+          id,
+          title,
+          variant: "muted",
+          text: "up to date",
+          filtered: filteredOut,
+          page,
+        });
+      } else if (dryRun.value) {
+        taggedScenes.value++;
+        pushLog({
+          id,
+          title,
+          variant: "dry",
+          text: newTags.join(", "),
+          filtered: filteredOut,
+          page,
+        });
+      } else {
+        taggedScenes.value++;
+        pushLog({
+          id,
+          title,
+          variant: "ok",
+          text: newTags.join(", "),
+          filtered: filteredOut,
+          page,
+        });
       }
-    }
+    });
   }
 
   async function start() {
@@ -133,7 +111,6 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
     stopRequested.value = false;
 
     try {
-      // First pass: load page 1 to get totalPages and totalScenes
       const perPage = 50;
       let p = 1;
 
@@ -151,8 +128,7 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
         totalScenes.value = data.total ?? 0;
         currentPage.value = p;
 
-        const scenes: Array<{ id: string; stashdb_id?: string; title?: string }> =
-          data.scenes ?? [];
+        const scenes: Array<{ id: string; stashdb_id?: string }> = data.scenes ?? [];
         const eligible = scenes.filter((s) => s.stashdb_id);
 
         if (eligible.length > 0 && !stopRequested.value) {

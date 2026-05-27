@@ -15,6 +15,8 @@ import {
   writePerformerRules,
 } from "./performerRules.ts";
 import { parseCupCategory } from "./measurementParser.ts";
+import { withConcurrency } from "./concurrency.ts";
+import { makeClient } from "./client.ts";
 import type { Candidate } from "@shared/types";
 
 const log = pino({ name: "server" });
@@ -332,6 +334,143 @@ app.post("/performer-tagger/tag", async (c) => {
       },
       () => stream.aborted,
     );
+
+    await stream.writeSSE({
+      data: JSON.stringify({ type: "done", updated, errors, dry_run: dryRun }),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Strip-Tits — one-shot bulk tag remover for when StashDB ruins your library
+// ---------------------------------------------------------------------------
+
+const QUERY_SCENES_WITH_TAGS = `
+query FindScenesWithTags($tag_ids: [ID!]!) {
+  findScenes(filter: { per_page: -1 } scene_filter: { tags: { value: $tag_ids, modifier: INCLUDES } }) {
+    count
+    scenes { id title tags { id name } }
+  }
+}
+`;
+
+const MUTATION_STRIP_TAGS = `
+mutation SceneUpdateTags($id: ID!, $tag_ids: [ID!]!) {
+  sceneUpdate(input: { id: $id, tag_ids: $tag_ids }) { id }
+}
+`;
+
+app.post("/strip-tits", async (c) => {
+  const body = await c.req.json<{ tags?: string[]; dry_run?: boolean }>();
+  const tagNamesToStrip = body.tags ?? [];
+  const dryRun = body.dry_run ?? false;
+
+  return streamSSE(c, async (stream) => {
+    if (!tagNamesToStrip.length) {
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "error",
+          error: "No tags specified — what exactly am I stripping?",
+        }),
+      });
+      return;
+    }
+
+    const callGQL = makeClient(config);
+
+    // Resolve tag names → IDs via local tag map
+    const tagger = getTagger();
+    let localTagMap: Map<string, string>;
+    try {
+      localTagMap = await tagger.getLocalTagMap();
+    } catch (err) {
+      await stream.writeSSE({ data: JSON.stringify({ type: "error", error: String(err) }) });
+      return;
+    }
+
+    const stripIds = new Set<string>();
+    const unknownTags: string[] = [];
+    for (const name of tagNamesToStrip) {
+      const id = localTagMap.get(name);
+      if (id) stripIds.add(id);
+      else unknownTags.push(name);
+    }
+
+    if (unknownTags.length) {
+      await stream.writeSSE({
+        data: JSON.stringify({ type: "warning", unknown_tags: unknownTags }),
+      });
+    }
+
+    if (!stripIds.size) {
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "error",
+          error: "None of the specified tags exist in Stash.",
+        }),
+      });
+      return;
+    }
+
+    // Fetch all scenes that have at least one of the target tags
+    let scenes: Array<{ id: string; title?: string; tags: Array<{ id: string; name: string }> }>;
+    try {
+      const data = await callGQL(QUERY_SCENES_WITH_TAGS, { tag_ids: [...stripIds] });
+      scenes =
+        (
+          data["findScenes"] as {
+            scenes?: Array<{
+              id: string;
+              title?: string;
+              tags: Array<{ id: string; name: string }>;
+            }>;
+          }
+        )?.scenes ?? [];
+    } catch (err) {
+      await stream.writeSSE({ data: JSON.stringify({ type: "error", error: String(err) }) });
+      return;
+    }
+
+    await stream.writeSSE({
+      data: JSON.stringify({ type: "start", total: scenes.length, dry_run: dryRun }),
+    });
+
+    let updated = 0;
+    let errors = 0;
+
+    await withConcurrency(scenes, config.concurrency, async (scene) => {
+      if (stream.aborted) return;
+
+      const strippedTags = scene.tags.filter((t) => stripIds.has(t.id)).map((t) => t.name);
+      const keptIds = scene.tags.filter((t) => !stripIds.has(t.id)).map((t) => t.id);
+
+      if (!strippedTags.length) return;
+
+      let error = "";
+      if (!dryRun) {
+        try {
+          await callGQL(MUTATION_STRIP_TAGS, { id: scene.id, tag_ids: keptIds });
+          updated++;
+        } catch (err) {
+          error = err instanceof Error ? err.message : String(err);
+          errors++;
+        }
+      } else {
+        updated++;
+      }
+
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "result",
+          scene_id: scene.id,
+          scene_title: scene.title ?? `Scene ${scene.id}`,
+          stripped_tags: strippedTags,
+          updated: !dryRun && !error,
+          dry_run: dryRun,
+          error,
+        }),
+      });
+    });
 
     await stream.writeSSE({
       data: JSON.stringify({ type: "done", updated, errors, dry_run: dryRun }),

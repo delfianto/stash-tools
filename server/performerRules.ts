@@ -1,0 +1,159 @@
+import { readFileSync, existsSync } from "node:fs";
+import type { CupCategory } from "./measurementParser.ts";
+import pino from "pino";
+
+const log = pino({ name: "performerRules" });
+
+// ---------------------------------------------------------------------------
+// Rule schema
+// ---------------------------------------------------------------------------
+
+interface TagsCondition {
+  any?: string[];
+  all?: string[];
+  none?: string[];
+}
+
+interface PerformerRuleCondition {
+  // ISO 3166-1 alpha-2 country code, e.g. "JP", "GB"
+  country?: { any?: string[]; none?: string[] };
+  // Stash ethnicity string, e.g. "Caucasian", "Asian" — case-insensitive match
+  ethnicity?: { any?: string[] };
+  // Derived from parsed measurements
+  cup_category?: { any?: CupCategory[] };
+  // Existing tags on the performer
+  tags?: TagsCondition;
+}
+
+export interface PerformerRule {
+  description?: string;
+  if: PerformerRuleCondition;
+  then: { add?: string[]; remove?: string[] };
+}
+
+// ---------------------------------------------------------------------------
+// Loader
+// ---------------------------------------------------------------------------
+
+export function loadPerformerRules(filePath: string): PerformerRule[] {
+  if (!existsSync(filePath)) {
+    log.debug({ filePath }, "performer_rules_file_not_found");
+    return [];
+  }
+  try {
+    const raw = readFileSync(filePath, "utf-8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      log.warn({ filePath }, "performer_rules_must_be_array");
+      return [];
+    }
+    log.info({ filePath, count: parsed.length }, "performer_rules_loaded");
+    return parsed as PerformerRule[];
+  } catch (err) {
+    log.error({ filePath, error: String(err) }, "performer_rules_load_failed");
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Evaluator
+// ---------------------------------------------------------------------------
+
+function conditionMatches(
+  cond: PerformerRuleCondition,
+  tagSet: Set<string>,
+  country: string,
+  ethnicity: string,
+  cupCategory: CupCategory | null,
+): boolean {
+  if (cond.country?.any?.length) {
+    // Unknown country → can't confirm → skip rule
+    if (!country) return false;
+    if (!cond.country.any.includes(country)) return false;
+  }
+  if (cond.country?.none?.length) {
+    // Unknown country → can't confirm absence → skip rule
+    if (!country) return false;
+    if (cond.country.none.includes(country)) return false;
+  }
+
+  if (cond.ethnicity?.any?.length) {
+    if (!ethnicity) return false;
+    const lc = ethnicity.toLowerCase();
+    if (!cond.ethnicity.any.some((e) => e.toLowerCase() === lc)) return false;
+  }
+
+  if (cond.cup_category?.any?.length) {
+    // No measurements → can't determine cup → skip rule
+    if (!cupCategory || !cond.cup_category.any.includes(cupCategory)) return false;
+  }
+
+  if (cond.tags) {
+    const { any: anyTags, all: allTags, none: noneTags } = cond.tags;
+    if (anyTags?.length && !anyTags.some((t) => tagSet.has(t))) return false;
+    if (allTags?.length && !allTags.every((t) => tagSet.has(t))) return false;
+    if (noneTags?.length && noneTags.some((t) => tagSet.has(t))) return false;
+  }
+
+  return true;
+}
+
+export interface PerformerApplyResult {
+  tags: string[];
+  removed: Set<string>;
+  ruleLog: string[];
+}
+
+export function applyPerformerRules(
+  tags: string[],
+  country: string,
+  ethnicity: string,
+  cupCategory: CupCategory | null,
+  rules: PerformerRule[],
+  localTagNames: Set<string>,
+): PerformerApplyResult {
+  const tagSet = new Set(tags);
+  const removed = new Set<string>();
+  const ruleLog: string[] = [];
+
+  for (const rule of rules) {
+    if (!rule.if || !rule.then) {
+      log.warn({ description: rule.description }, "performer_rule_missing_if_or_then_skipped");
+      continue;
+    }
+    if (!conditionMatches(rule.if, tagSet, country, ethnicity, cupCategory)) continue;
+
+    const desc = rule.description ?? "unnamed rule";
+    const actualRemovals: string[] = [];
+    const actualAdditions: string[] = [];
+
+    for (const t of rule.then.remove ?? []) {
+      if (tagSet.has(t)) {
+        tagSet.delete(t);
+        removed.add(t);
+        actualRemovals.push(t);
+      }
+    }
+
+    for (const t of rule.then.add ?? []) {
+      if (!localTagNames.has(t)) {
+        log.warn({ tag: t, rule: desc }, "performer_rule_unknown_tag_skipped");
+        continue;
+      }
+      if (!tagSet.has(t)) {
+        tagSet.add(t);
+        actualAdditions.push(t);
+      }
+    }
+
+    if (actualRemovals.length || actualAdditions.length) {
+      ruleLog.push(`[${desc}] -[${actualRemovals.join(", ")}] +[${actualAdditions.join(", ")}]`);
+      log.debug(
+        { rule: desc, removed: actualRemovals, added: actualAdditions },
+        "performer_rule_applied",
+      );
+    }
+  }
+
+  return { tags: [...tagSet].sort(), removed, ruleLog };
+}

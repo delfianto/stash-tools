@@ -91,8 +91,11 @@ function conditionMatches(
     const cset = new Set(performerCountries);
     if (cond.performer_country.any?.length && !cond.performer_country.any.some((c) => cset.has(c)))
       return false;
-    if (cond.performer_country.none?.length && cond.performer_country.none.some((c) => cset.has(c)))
-      return false;
+    if (cond.performer_country.none?.length) {
+      // No country data → can't confirm absence → skip rule rather than fire incorrectly
+      if (performerCountries.length === 0) return false;
+      if (cond.performer_country.none.some((c) => cset.has(c))) return false;
+    }
   }
 
   if (cond.performer_count) {
@@ -137,6 +140,10 @@ export function applyTagRules(
   const ruleLog: string[] = [];
 
   for (const rule of rules) {
+    if (!rule.if || !rule.then) {
+      log.warn({ description: rule.description }, "tag_rule_missing_if_or_then_skipped");
+      continue;
+    }
     if (!conditionMatches(rule.if, tagSet, studio, performers, performerCountries, performerCount))
       continue;
 

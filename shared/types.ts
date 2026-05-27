@@ -1,6 +1,38 @@
 // Shared types between the Bun backend and the Vue frontend.
 
 // ---------------------------------------------------------------------------
+// Performer Tagger
+// ---------------------------------------------------------------------------
+
+export interface Performer {
+  id: string;
+  name: string;
+  country: string;
+  ethnicity: string;
+  measurements: string;
+  cupCategory: string; // "small" | "medium" | "large" | ""
+  tags: string[];
+  stashUrl: string;
+}
+
+export interface PerformerTagResult {
+  performerId: string;
+  performerName: string;
+  measurements: string;
+  cupCategory: string;
+  addedTags: string[];
+  removedTags: string[];
+  ruleLog: string[];
+  updated: boolean;
+  error: string;
+}
+
+export interface PerformerStatus {
+  variant: "ok" | "error" | "dry" | "muted" | "loading";
+  text: string;
+}
+
+// ---------------------------------------------------------------------------
 // Renamer
 // ---------------------------------------------------------------------------
 

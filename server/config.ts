@@ -22,6 +22,7 @@ const schema = z.object({
 
   // Tagger
   STASH_TAG_RULES_FILE: z.string().default("./tag-rules.json"),
+  STASH_PERFORMER_RULES_FILE: z.string().default("./performer-rules.json"),
 
   // Renamer
   RENAMER_SOURCE: z.string().default(""),
@@ -42,6 +43,7 @@ export const config = {
   // Stash connection
   scheme: env.STASH_SCHEME,
   tagRulesFile: env.STASH_TAG_RULES_FILE,
+  performerRulesFile: env.STASH_PERFORMER_RULES_FILE,
   host: env.STASH_HOST,
   port: env.STASH_PORT,
   apiKey: env.STASH_API_KEY,

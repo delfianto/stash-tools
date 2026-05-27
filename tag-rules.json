@@ -3,13 +3,7 @@
     "description": "Lesbian = female-only; downgrade to Lesbian Action in mixed-gender scenes",
     "if": {
       "tags": {
-        "any": [
-          "Threesome (BGG)",
-          "Foursome (BGGG)",
-          "Fivesome (BGGGG)",
-          "Sixsome (BBBBGG)",
-          "Sixsome (BBBGGG)"
-        ],
+        "any": ["Threesome (BGG)", "Foursome (BGGG)", "Fivesome (BGGGG)", "Sixsome (BBBBGG)", "Sixsome (BBBGGG)"],
         "all": ["Lesbian"]
       }
     },
@@ -21,9 +15,7 @@
   {
     "description": "BBC implies Interracial",
     "if": {
-      "tags": {
-        "any": ["Big Black Cock (BBC)"]
-      }
+      "tags": { "any": ["Big Black Cock (BBC)"] }
     },
     "then": {
       "add": ["Interracial"]
@@ -32,9 +24,7 @@
   {
     "description": "Blacked and Blacked Raw are Interracial/BBC studios",
     "if": {
-      "studio": {
-        "any": ["Blacked", "Blacked Raw"]
-      }
+      "studio": { "any": ["Blacked", "Blacked Raw"] }
     },
     "then": {
       "add": ["Interracial", "Big Black Cock (BBC)"]
@@ -45,52 +35,11 @@
     "if": {
       "performer_country": {
         "any": [
-          "AL",
-          "AD",
-          "AT",
-          "BY",
-          "BE",
-          "BA",
-          "BG",
-          "HR",
-          "CY",
-          "CZ",
-          "DK",
-          "EE",
-          "FI",
-          "FR",
-          "DE",
-          "GR",
-          "HU",
-          "IS",
-          "IE",
-          "IT",
-          "XK",
-          "LV",
-          "LI",
-          "LT",
-          "LU",
-          "MT",
-          "MD",
-          "MC",
-          "ME",
-          "NL",
-          "MK",
-          "NO",
-          "PL",
-          "PT",
-          "RO",
-          "RU",
-          "SM",
-          "RS",
-          "SK",
-          "SI",
-          "ES",
-          "SE",
-          "CH",
-          "UA",
-          "GB",
-          "VA"
+          "AL", "AD", "AT", "BY", "BE", "BA", "BG", "HR", "CY", "CZ",
+          "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS", "IE", "IT",
+          "XK", "LV", "LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL",
+          "MK", "NO", "PL", "PT", "RO", "RU", "SM", "RS", "SK", "SI",
+          "ES", "SE", "CH", "UA", "GB", "VA"
         ]
       }
     },
@@ -104,52 +53,11 @@
       "tags": { "any": ["European"] },
       "performer_country": {
         "none": [
-          "AL",
-          "AD",
-          "AT",
-          "BY",
-          "BE",
-          "BA",
-          "BG",
-          "HR",
-          "CY",
-          "CZ",
-          "DK",
-          "EE",
-          "FI",
-          "FR",
-          "DE",
-          "GR",
-          "HU",
-          "IS",
-          "IE",
-          "IT",
-          "XK",
-          "LV",
-          "LI",
-          "LT",
-          "LU",
-          "MT",
-          "MD",
-          "MC",
-          "ME",
-          "NL",
-          "MK",
-          "NO",
-          "PL",
-          "PT",
-          "RO",
-          "RU",
-          "SM",
-          "RS",
-          "SK",
-          "SI",
-          "ES",
-          "SE",
-          "CH",
-          "UA",
-          "GB",
-          "VA"
+          "AL", "AD", "AT", "BY", "BE", "BA", "BG", "HR", "CY", "CZ",
+          "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS", "IE", "IT",
+          "XK", "LV", "LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL",
+          "MK", "NO", "PL", "PT", "RO", "RU", "SM", "RS", "SK", "SI",
+          "ES", "SE", "CH", "UA", "GB", "VA"
         ]
       }
     },
@@ -160,9 +68,7 @@
   {
     "description": "Japanese performer → tag scene as Japanese",
     "if": {
-      "performer_country": {
-        "any": ["JP"]
-      }
+      "performer_country": { "any": ["JP"] }
     },
     "then": {
       "add": ["Japanese"]
@@ -173,24 +79,13 @@
     "if": {
       "studio": {
         "any": [
-          "A Girl Knows",
-          "All Girl Massage",
-          "Girl Girl XXX",
-          "Girlfriends Films",
-          "GirlsOnlyPorn",
-          "Girlsway",
-          "Viv Thomas",
-          "When Girls Play"
+          "A Girl Knows", "All Girl Massage", "Girl Girl XXX",
+          "Girlfriends Films", "GirlsOnlyPorn", "Girlsway",
+          "Viv Thomas", "When Girls Play"
         ]
       },
       "tags": {
-        "none": [
-          "Threesome (BGG)",
-          "Foursome (BGGG)",
-          "Fivesome (BGGGG)",
-          "Sixsome (BBBBGG)",
-          "Sixsome (BBBGGG)"
-        ]
+        "none": ["Threesome (BGG)", "Foursome (BGGG)", "Fivesome (BGGGG)", "Sixsome (BBBBGG)", "Sixsome (BBBGGG)"]
       }
     },
     "then": {

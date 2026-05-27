@@ -1,18 +1,21 @@
 [
   {
+    "exclusive": true,
     "description": "Large cup size → Big Tits",
     "if": { "cup_category": { "any": ["large"] } },
-    "then": { "remove": ["Small Tits", "Medium Tits"], "add": ["Big Tits"] }
+    "then": { "add": ["Big Tits"] }
   },
   {
+    "exclusive": true,
     "description": "Medium cup size → Medium Tits",
     "if": { "cup_category": { "any": ["medium"] } },
-    "then": { "remove": ["Small Tits", "Big Tits"], "add": ["Medium Tits"] }
+    "then": { "add": ["Medium Tits"] }
   },
   {
+    "exclusive": true,
     "description": "Small cup size → Small Tits",
     "if": { "cup_category": { "any": ["small"] } },
-    "then": { "remove": ["Medium Tits", "Big Tits"], "add": ["Small Tits"] }
+    "then": { "add": ["Small Tits"] }
   },
   {
     "description": "European performer",

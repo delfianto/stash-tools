@@ -27,6 +27,10 @@ interface PerformerRuleCondition {
 
 export interface PerformerRule {
   description?: string;
+  // When true, all add-targets from OTHER exclusive rules are automatically removed
+  // when this rule fires. Use this for mutually exclusive tag groups (e.g. cup sizes)
+  // so the correct tag always replaces the wrong one — even across batch runs.
+  exclusive?: boolean;
   if: PerformerRuleCondition;
   then: { add?: string[]; remove?: string[] };
 }
@@ -142,6 +146,18 @@ export function applyPerformerRules(
   const removed = new Set<string>();
   const ruleLog: string[] = [];
 
+  // Union of all add-targets from exclusive rules — the full "exclusive group".
+  // When any exclusive rule fires, every tag in this set that isn't being added
+  // by the firing rule is automatically removed. This makes mutually exclusive
+  // groups (e.g. cup sizes) self-correcting across batch runs without relying on
+  // hand-written remove lists in every rule.
+  const exclusiveGroupTags = new Set<string>();
+  for (const rule of rules) {
+    if (rule.exclusive) {
+      for (const t of rule.then?.add ?? []) exclusiveGroupTags.add(t);
+    }
+  }
+
   for (const rule of rules) {
     if (!rule.if || !rule.then) {
       log.warn({ description: rule.description }, "performer_rule_missing_if_or_then_skipped");
@@ -150,8 +166,20 @@ export function applyPerformerRules(
     if (!conditionMatches(rule.if, tagSet, country, ethnicity, cupCategory)) continue;
 
     const desc = rule.description ?? "unnamed rule";
+    const tagsToAdd = new Set(rule.then.add ?? []);
     const actualRemovals: string[] = [];
     const actualAdditions: string[] = [];
+
+    // Exclusive rule: sweep out all other members of the exclusive group first.
+    if (rule.exclusive) {
+      for (const t of exclusiveGroupTags) {
+        if (!tagsToAdd.has(t) && tagSet.has(t)) {
+          tagSet.delete(t);
+          removed.add(t);
+          actualRemovals.push(t);
+        }
+      }
+    }
 
     for (const t of rule.then.remove ?? []) {
       if (tagSet.has(t)) {
@@ -161,7 +189,7 @@ export function applyPerformerRules(
       }
     }
 
-    for (const t of rule.then.add ?? []) {
+    for (const t of tagsToAdd) {
       if (!localTagNames.has(t)) {
         log.warn({ tag: t, rule: desc }, "performer_rule_unknown_tag_skipped");
         continue;

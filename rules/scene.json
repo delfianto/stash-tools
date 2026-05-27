@@ -1,5 +1,11 @@
 [
   {
+    "description": "Ignore StashDB tits tags — community tagging is unreliable, we classify these ourselves via performer rules",
+    "then": {
+      "filter_stashdb": ["Small Tits", "Medium Tits", "Large Tits", "Big Tits", "Huge Tits"]
+    }
+  },
+  {
     "description": "Lesbian = female-only; downgrade to Lesbian Action in mixed-gender scenes",
     "if": {
       "tags": {

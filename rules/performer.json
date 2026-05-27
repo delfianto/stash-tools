@@ -1,6 +1,12 @@
 [
   {
     "exclusive": true,
+    "description": "Extra large cup size → Huge Tits",
+    "if": { "cup_category": { "any": ["extra_large"] } },
+    "then": { "add": ["Huge Tits"] }
+  },
+  {
+    "exclusive": true,
     "description": "Large cup size → Big Tits",
     "if": { "cup_category": { "any": ["large"] } },
     "then": { "add": ["Big Tits"] }

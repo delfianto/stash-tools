@@ -1,72 +1,61 @@
-export type CupCategory = "small" | "medium" | "large";
+export type CupCategory = "small" | "medium" | "large" | "extra_large";
 
 /**
- * Parses a measurement string (e.g. "34DD-24-36" or "90F-59-88") and returns
- * a cup size category that accounts for band size via sister-sizing normalization.
- *
- * Cup letters alone are misleading: 32DD has the same physical volume as 34D,
- * 36C, 38B, and 40A (sister sizes). The raw letter says nothing without the band.
- *
- * We normalize everything to an equivalent cup at a reference band of 36" (US)
- * / 90cm (Japanese/EU), then apply thresholds to that normalized value:
- *   ≤ C at 36"  → small
- *   D–E at 36"  → medium
- *   F+ at 36"   → large
- *
- * Examples:
- *   32DD → normalized C at 36"  → small  (same volume as 36C)
- *   34DD → normalized D at 36"  → medium
- *   36DD → normalized E at 36"  → medium
- *   38DD → normalized F at 36"  → large
- *   34G  → normalized F at 36"  → large
- *   40D  → normalized F at 36"  → large  (large band bumps a D into large territory)
+ * Parses a measurement string and returns a cup size category.
+ * 4-tier classification based on the Visual Mass Index (VMI).
  */
 export function parseCupCategory(measurements: string | null | undefined): CupCategory | null {
   if (!measurements?.trim()) return null;
-  const match = measurements.trim().match(/^(\d+)([A-Za-z]+)/i);
+  // Match band (2-3 digits) and cup (letters)
+  const match = measurements.trim().match(/^(\d{2,3})([A-Za-z]+)/i);
   if (!match) return null;
 
   const band = parseInt(match[1], 10);
   const cupNum = cupToNumber(match[2].toUpperCase());
   if (cupNum === null) return null;
 
-  // Bands ≥ 60 are centimetre-based (Japanese / EU); anything smaller is US inches.
   const isMetric = band >= 60;
-  const offset = isMetric
-    ? Math.round((band - 90) / 5) // reference 90 cm ≈ 36"
-    : Math.round((band - 36) / 2); // reference 36"
+  // Convert metric band to US equivalent (e.g., 70cm -> 32", 75cm -> 34")
+  const usBand = isMetric ? Math.round((band - 70) / 5) * 2 + 32 : band;
 
-  return categorizeCupNormalized(cupNum + offset);
+  // Visual Mass Index (VMI) = Band Size * Cup Number
+  // A wider frame makes the same cup look visually larger (e.g. 34B is Medium, 32B is Small)
+  const visualMass = cupNum * usBand;
+  return categorizeVisualMass(visualMass);
 }
 
-// Converts a cup string to a numeric volume unit (1 unit ≈ 1 inch / 2.5 cm increment).
-// Multi-D US notation is collapsed to single-letter equivalents first.
+// Converts a cup string to a numeric volume unit.
 function cupToNumber(cup: string): number | null {
-  const c = cup === "DDDD" ? "G" : cup === "DDD" ? "F" : cup === "DD" ? "E" : cup;
+  const normalizedCup = cup.toUpperCase();
+  let c = normalizedCup;
 
+  if (/^D{2,}$/.test(normalizedCup)) {
+    const dCount = normalizedCup.length;
+    c = dCount === 2 ? "E" : dCount === 3 ? "F" : dCount === 4 ? "G" : "H";
+  } else if (normalizedCup.length === 2 && normalizedCup[0] === normalizedCup[1]) {
+    if (normalizedCup === "FF") c = "F";
+    else if (normalizedCup === "GG") c = "G";
+    else if (normalizedCup === "HH") c = "H";
+    else if (normalizedCup === "JJ") c = "J";
+    else if (normalizedCup === "KK") c = "K";
+  }
+
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const table: Record<string, number> = {
     AAA: -1,
     AA: 0,
-    A: 1,
-    B: 2,
-    C: 3,
-    D: 4,
-    E: 5,
-    F: 6,
-    G: 7,
-    H: 8,
-    I: 9,
-    J: 10,
-    K: 11,
-    L: 12,
-    M: 13,
   };
+  for (let i = 0; i < alphabet.length; i++) {
+    table[alphabet[i]] = i + 1;
+  }
+
   return table[c] ?? null;
 }
 
-// Thresholds relative to the 36" / 90 cm reference band.
-function categorizeCupNormalized(n: number): CupCategory {
-  if (n <= 3) return "small"; // ≤ C at 36"
-  if (n <= 5) return "medium"; // D or E at 36"
-  return "large"; // F+ at 36"
+// Thresholds for the 4-tier classification based on Visual Mass Index
+function categorizeVisualMass(mass: number): CupCategory {
+  if (mass <= 67) return "small"; // <= 33B (e.g. Hannah Hays, 30B, 32A, 33B)
+  if (mass <= 130) return "medium"; // 34B, 32C, 34C, 36C, 40C, 30D, 32D
+  if (mass <= 216) return "large"; // 34D, 36D, 36F, 42DD
+  return "extra_large"; // 34G+, 36G+, Huge Tits
 }

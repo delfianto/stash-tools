@@ -5,13 +5,10 @@ import PageHeader from "@/components/PageHeader.vue";
 import FilterSelect from "@/components/FilterSelect.vue";
 import BatchProgress from "@/components/BatchProgress.vue";
 import { useBulkPerformerTaggerStore } from "@/stores/bulkPerformerTagger";
-import { usePerformerTaggerStore } from "@/stores/performerTagger";
 
 const store = useBulkPerformerTaggerStore();
-const performerStore = usePerformerTaggerStore();
 
-// Load page 1 so filter dropdowns have options populated
-onMounted(() => performerStore.loadPerformers(1));
+onMounted(() => store.loadMeta());
 onUnmounted(() => {
   if (store.running) store.stop();
 });
@@ -103,12 +100,12 @@ onUnmounted(() => {
         <span style="font-size: 11px; color: var(--color-muted); white-space: nowrap">Filter:</span>
         <FilterSelect
           v-model="store.countryFilter"
-          :options="performerStore.uniqueCountries"
+          :options="store.availableCountries"
           placeholder="Country…"
         />
         <FilterSelect
           v-model="store.ethnicityFilter"
-          :options="performerStore.uniqueEthnicities"
+          :options="store.availableEthnicities"
           placeholder="Ethnicity…"
         />
       </div>

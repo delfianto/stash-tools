@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import type { CupCategory } from "./measurementParser.ts";
 import pino from "pino";
 
@@ -53,6 +53,32 @@ export function loadPerformerRules(filePath: string): PerformerRule[] {
     log.error({ filePath, error: String(err) }, "performer_rules_load_failed");
     return [];
   }
+}
+
+export function validatePerformerRules(raw: string): { count: number; error: string } {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return { count: 0, error: "Must be a JSON array" };
+    return { count: parsed.length, error: "" };
+  } catch (err) {
+    return { count: 0, error: String(err) };
+  }
+}
+
+export function readPerformerRulesRaw(filePath: string): string {
+  if (!existsSync(filePath)) return "[]";
+  return readFileSync(filePath, "utf-8");
+}
+
+export function writePerformerRules(
+  filePath: string,
+  raw: string,
+): { count: number; error: string } {
+  const result = validatePerformerRules(raw);
+  if (result.error) return result;
+  writeFileSync(filePath, raw, "utf-8");
+  log.info({ filePath, count: result.count }, "performer_rules_saved");
+  return result;
 }
 
 // ---------------------------------------------------------------------------

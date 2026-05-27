@@ -102,7 +102,8 @@ export const useTaggerStore = defineStore("tagger", () => {
         if (d["type"] === "result") {
           done++;
           const newTags = (d["new_tags"] as string[] | undefined) ?? [];
-          if (newTags.length) tagged++;
+          const removedTags = (d["removed_tags"] as string[] | undefined) ?? [];
+          if (newTags.length || removedTags.length) tagged++;
           if (d["error"]) errors++;
 
           const sceneId = String(d["scene_id"]);
@@ -110,16 +111,21 @@ export const useTaggerStore = defineStore("tagger", () => {
 
           if (d["error"] && d["error"] !== "No StashDB ID") {
             statuses.value.set(sceneId, { variant: "error", text: String(d["error"]) });
-          } else if (!newTags.length) {
+          } else if (!newTags.length && !removedTags.length) {
             if (d["error"] === "No StashDB ID") {
               statuses.value.set(sceneId, { variant: "muted", text: "no StashDB ID" });
             } else {
               statuses.value.set(sceneId, { variant: "ok", text: "up to date", filtered });
             }
-          } else if (dryRun.value) {
-            statuses.value.set(sceneId, { variant: "dry", text: newTags.join(", "), filtered });
           } else {
-            statuses.value.set(sceneId, { variant: "ok", text: newTags.join(", "), filtered });
+            const parts: string[] = [];
+            if (newTags.length) parts.push(`+${newTags.join(", ")}`);
+            if (removedTags.length) parts.push(`−${removedTags.join(", ")}`);
+            statuses.value.set(sceneId, {
+              variant: dryRun.value ? "dry" : "ok",
+              text: parts.join(" "),
+              filtered,
+            });
           }
 
           const verb = dryRun.value ? "would tag" : "tagged";
@@ -161,6 +167,27 @@ export const useTaggerStore = defineStore("tagger", () => {
     }
   }
 
+  const allOnPageSelected = computed(() => {
+    const eligible = scenes.value.filter((s) => s.stashdbId);
+    return eligible.length > 0 && eligible.every((s) => selected.value.has(s.id));
+  });
+
+  const selectingAllPages = ref(false);
+
+  async function selectAllPages() {
+    selectingAllPages.value = true;
+    try {
+      const params = new URLSearchParams();
+      if (studioFilter.value) params.set("studio", studioFilter.value);
+      if (performerFilter.value) params.set("performer", performerFilter.value);
+      const resp = await fetch(`/api/tagger/scene-ids?${params}`);
+      const data = await resp.json();
+      selected.value = new Set((data.ids as string[]) ?? []);
+    } finally {
+      selectingAllPages.value = false;
+    }
+  }
+
   return {
     scenes,
     tags,
@@ -186,5 +213,8 @@ export const useTaggerStore = defineStore("tagger", () => {
     tagSelected,
     toggleSelect,
     selectAll,
+    allOnPageSelected,
+    selectingAllPages,
+    selectAllPages,
   };
 });

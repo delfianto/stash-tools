@@ -6,9 +6,14 @@ import pino from "pino";
 import { config } from "./config.ts";
 import { StashRenamer } from "./renamer.ts";
 import { AutoTagger } from "./tagger.ts";
-import { loadTagRules } from "./tagRules.ts";
+import { loadTagRules, validateTagRules, readTagRulesRaw, writeTagRules } from "./tagRules.ts";
 import { PerformerTagger } from "./performerTagger.ts";
-import { loadPerformerRules } from "./performerRules.ts";
+import {
+  loadPerformerRules,
+  validatePerformerRules,
+  readPerformerRulesRaw,
+  writePerformerRules,
+} from "./performerRules.ts";
 import { parseCupCategory } from "./measurementParser.ts";
 import type { Candidate } from "@shared/types";
 
@@ -154,6 +159,18 @@ app.get("/api/tagger/scenes", async (c) => {
   }
 });
 
+app.get("/api/tagger/scene-ids", async (c) => {
+  const studio = c.req.query("studio") || undefined;
+  const performer = c.req.query("performer") || undefined;
+  try {
+    const result = await getTagger().getAllSceneIds({ studio, performer });
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: msg }, 500);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Tagger SSE
 // ---------------------------------------------------------------------------
@@ -287,6 +304,28 @@ app.get("/api/performer-tagger/performers", async (c) => {
   }
 });
 
+app.get("/api/performer-tagger/meta", async (c) => {
+  try {
+    const result = await getPerformerTagger().getPerformerMeta();
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: msg }, 500);
+  }
+});
+
+app.get("/api/performer-tagger/performer-ids", async (c) => {
+  const country = c.req.query("country") || undefined;
+  const ethnicity = c.req.query("ethnicity") || undefined;
+  try {
+    const result = await getPerformerTagger().getAllPerformerIds({ country, ethnicity });
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: msg }, 500);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Performer Tagger SSE
 // ---------------------------------------------------------------------------
@@ -370,6 +409,36 @@ app.post("/performer-tagger/tag", async (c) => {
       data: JSON.stringify({ type: "done", updated, errors, dry_run: dryRun }),
     });
   });
+});
+
+// ---------------------------------------------------------------------------
+// Rules API
+// ---------------------------------------------------------------------------
+
+app.get("/api/rules", (c) => {
+  const tagResult = validateTagRules(readTagRulesRaw(config.tagRulesFile));
+  const performerResult = validatePerformerRules(readPerformerRulesRaw(config.performerRulesFile));
+  return c.json({ tagRules: tagResult, performerRules: performerResult });
+});
+
+app.get("/api/rules/tag-rules", (c) => {
+  return c.json({ content: readTagRulesRaw(config.tagRulesFile) });
+});
+
+app.get("/api/rules/performer-rules", (c) => {
+  return c.json({ content: readPerformerRulesRaw(config.performerRulesFile) });
+});
+
+app.put("/api/rules/tag-rules", async (c) => {
+  const body = await c.req.json<{ content: string }>();
+  const result = writeTagRules(config.tagRulesFile, body.content);
+  return c.json(result, result.error ? 400 : 200);
+});
+
+app.put("/api/rules/performer-rules", async (c) => {
+  const body = await c.req.json<{ content: string }>();
+  const result = writePerformerRules(config.performerRulesFile, body.content);
+  return c.json(result, result.error ? 400 : 200);
 });
 
 // ---------------------------------------------------------------------------

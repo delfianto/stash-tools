@@ -33,8 +33,9 @@ interface RuleCondition {
 
 export interface TagRule {
   description?: string;
-  if: RuleCondition;
-  then: { add?: string[]; remove?: string[] };
+  // if is optional — rules with only filter_stashdb in then don't need a condition
+  if?: RuleCondition;
+  then: { add?: string[]; remove?: string[]; filter_stashdb?: string[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -163,10 +164,12 @@ export function applyTagRules(
   const ruleLog: string[] = [];
 
   for (const rule of rules) {
-    if (!rule.if || !rule.then) {
-      log.warn({ description: rule.description }, "tag_rule_missing_if_or_then_skipped");
+    if (!rule.then) {
+      log.warn({ description: rule.description }, "tag_rule_missing_then_skipped");
       continue;
     }
+    // Rules with no if are filter_stashdb-only — handled by buildStashdbBlocklist, skip here
+    if (!rule.if) continue;
     if (!conditionMatches(rule.if, tagSet, studio, performers, performerCountries, performerCount))
       continue;
 
@@ -203,4 +206,14 @@ export function applyTagRules(
   }
 
   return { tags: [...tagSet].sort(), removed, ruleLog };
+}
+
+// Collects all filter_stashdb entries across all rules into a single blocklist.
+// Applied before the StashDB↔local intersection so blocked tags never land on scenes.
+export function buildStashdbBlocklist(rules: TagRule[]): Set<string> {
+  const blocked = new Set<string>();
+  for (const rule of rules) {
+    for (const t of rule.then.filter_stashdb ?? []) blocked.add(t);
+  }
+  return blocked;
 }

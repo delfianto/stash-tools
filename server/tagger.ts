@@ -1,7 +1,7 @@
 import { makeClient, type GQLClient } from "./client.ts";
 import type { Config } from "./config.ts";
 import type { TagResult } from "@shared/types";
-import { applyTagRules, type TagRule } from "./tagRules.ts";
+import { applyTagRules, buildStashdbBlocklist, type TagRule } from "./tagRules.ts";
 import pino from "pino";
 
 const log = pino({ name: "tagger" });
@@ -329,8 +329,12 @@ export class AutoTagger {
       };
     }
 
-    // 1. Intersect StashDB tags with local curated set
-    const rawMatched = [...localTagNames].filter((t) => stashdbTagNames.includes(t)).sort();
+    // 1. Intersect StashDB tags with local curated set, minus any rule-blocked tags
+    const stashdbBlocklist = buildStashdbBlocklist(rules);
+    const allowedStashdbTags = stashdbBlocklist.size
+      ? stashdbTagNames.filter((t) => !stashdbBlocklist.has(t))
+      : stashdbTagNames;
+    const rawMatched = [...localTagNames].filter((t) => allowedStashdbTags.includes(t)).sort();
 
     // 2. Drop parent tags when a more-specific child is also present
     const matched = filterRedundantParents(rawMatched, tagAncestors);

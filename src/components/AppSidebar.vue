@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
-import { FolderSync, Tag, Layers, Zap } from "lucide-vue-next";
+import { FolderSync, Tag, Layers, Zap, Users } from "lucide-vue-next";
 
 const route = useRoute();
 
@@ -8,6 +8,7 @@ const nav = [
   { path: "/renamer", label: "Renamer", icon: FolderSync },
   { path: "/tagger", label: "Auto Tagger", icon: Tag },
   { path: "/bulk-tagger", label: "Bulk Tagger", icon: Zap },
+  { path: "/performer-tagger", label: "Performer Tagger", icon: Users },
 ];
 </script>
 

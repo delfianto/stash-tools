@@ -140,7 +140,7 @@
     "then": { "add": ["Sixsome (Lesbian)"] }
   },
   {
-    "description": "Lesbian Group Sex (3+ performers)",
+    "description": "Lesbian Group Sex (7+ performers)",
     "if": {
       "tags": { "any": ["Lesbian"] },
       "performer_count": { "gt": 7 }

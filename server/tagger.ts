@@ -22,15 +22,6 @@ query FindAllTagsWithParents {
 }
 `;
 
-const QUERY_STASHDB_SCENE = `
-query FindScene($id: ID!) {
-  findScene(id: $id) {
-    id
-    tags { name }
-  }
-}
-`;
-
 const QUERY_SCENE_IDS = `
 query FindSceneIds($filter: FindFilterType!) {
   findScenes(
@@ -159,6 +150,25 @@ interface StashScene {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeErrorResult(sceneId: string, error: string, title = ""): TagResult {
+  return {
+    sceneId,
+    sceneTitle: title,
+    stashdbId: "",
+    matchedTags: [],
+    filteredOut: [],
+    newTags: [],
+    removedTags: [],
+    ruleLog: [],
+    updated: false,
+    error,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // AutoTagger
 // ---------------------------------------------------------------------------
 
@@ -196,7 +206,6 @@ export class AutoTagger {
     filters?: { studio?: string; performer?: string },
   ): Promise<{ scenes: StashScene[]; total: number }> {
     if (filters?.studio || filters?.performer) {
-      // Load all scenes and filter in application code to avoid ID lookups
       const data = await this.callGQL(QUERY_SCENES_PAGE, {
         filter: { page: 1, per_page: -1, sort: "title", direction: "ASC" },
       });
@@ -249,26 +258,46 @@ export class AutoTagger {
     return scene.stash_ids?.find((s) => s.endpoint === this.config.dbEndpoint)?.stash_id ?? "";
   }
 
-  async getStashdbSceneTags(stashdbId: string): Promise<string[]> {
+  // Fetches StashDB tags for multiple scenes in a single HTTP request using GQL aliases.
+  // Returns a map of stashdbId → tag name list.
+  private async getStashdbSceneTagsBatch(
+    entries: Array<{ stashdbId: string }>,
+  ): Promise<Map<string, string[]>> {
+    if (!entries.length) return new Map();
+
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (this.config.apiKeyDb) headers["ApiKey"] = this.config.apiKeyDb;
+
+    const aliases = entries
+      .map((e, i) => `s${i}: findScene(id: ${JSON.stringify(e.stashdbId)}) { tags { name } }`)
+      .join("\n");
 
     const resp = await fetch(this.config.dbEndpoint, {
       method: "POST",
       headers,
-      body: JSON.stringify({ query: QUERY_STASHDB_SCENE, variables: { id: stashdbId } }),
+      body: JSON.stringify({ query: `{ ${aliases} }` }),
     });
 
-    if (!resp.ok) throw new Error(`StashDB request failed: ${resp.status} ${resp.statusText}`);
+    if (!resp.ok)
+      throw new Error(`StashDB batch request failed: ${resp.status} ${resp.statusText}`);
 
     const json = (await resp.json()) as {
-      data?: { findScene?: { tags?: Array<{ name: string }> } };
+      data?: Record<string, { tags?: Array<{ name: string }> } | null>;
     };
-    return json.data?.findScene?.tags?.map((t) => t.name) ?? [];
+
+    const result = new Map<string, string[]>();
+    entries.forEach((e, i) => {
+      result.set(e.stashdbId, json.data?.[`s${i}`]?.tags?.map((t) => t.name) ?? []);
+    });
+    return result;
   }
 
+  // processScene accepts already-fetched stashdbTagNames so the caller can batch the
+  // StashDB requests across multiple scenes. Pass [] for scenes with no stashdbId
+  // (the early return fires before the parameter is used).
   async processScene(
     scene: StashScene,
+    stashdbTagNames: string[],
     localTagNames: Set<string>,
     localTagMap: Map<string, string>,
     tagAncestors: Map<string, Set<string>>,
@@ -297,26 +326,6 @@ export class AutoTagger {
         ruleLog: [],
         updated: false,
         error: "No StashDB ID",
-      };
-    }
-
-    let stashdbTagNames: string[];
-    try {
-      stashdbTagNames = await this.getStashdbSceneTags(stashdbId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.error({ sceneId, error: msg }, "stashdb_fetch_failed");
-      return {
-        sceneId,
-        sceneTitle: title,
-        stashdbId,
-        matchedTags: [],
-        filteredOut: [],
-        newTags: [],
-        removedTags: [],
-        ruleLog: [],
-        updated: false,
-        error: msg,
       };
     }
 
@@ -425,5 +434,102 @@ export class AutoTagger {
         error: msg,
       };
     }
+  }
+
+  // Processes scenes in waves of `concurrency`:
+  //   Phase 1 — concurrent Stash fetches for the whole wave
+  //   Phase 2 — one batched StashDB request for all scenes in the wave that have a stashdbId
+  //   Phase 3 — concurrent mutations
+  //   Phase 4 — emit results
+  // This reduces StashDB HTTP calls from N to ⌈N/concurrency⌉.
+  async tagScenes(
+    sceneIds: string[],
+    localTagNames: Set<string>,
+    localTagMap: Map<string, string>,
+    tagAncestors: Map<string, Set<string>>,
+    dryRun: boolean,
+    rules: TagRule[],
+    concurrency: number,
+    onResult: (result: TagResult) => Promise<void>,
+    isAborted: () => boolean,
+  ): Promise<{ updated: number; errors: number }> {
+    let updated = 0;
+    let errors = 0;
+
+    for (let i = 0; i < sceneIds.length; i += concurrency) {
+      if (isAborted()) break;
+
+      const wave = sceneIds.slice(i, i + concurrency);
+
+      // Phase 1: fetch all scenes from Stash concurrently
+      const sceneResults = await Promise.all(
+        wave.map((id) =>
+          this.getScene(id).catch((e: unknown) => (e instanceof Error ? e : new Error(String(e)))),
+        ),
+      );
+
+      // Phase 2: batch StashDB tag fetch for scenes that have a stashdbId
+      const stashdbEntries = sceneResults.flatMap((s, j) => {
+        if (s instanceof Error || !s) return [];
+        const stashdbId = this.stashdbIdFor(s);
+        return stashdbId ? [{ stashdbId, waveIdx: j }] : [];
+      });
+
+      let stashdbTagMap = new Map<string, string[]>();
+      let batchError = "";
+      if (stashdbEntries.length) {
+        try {
+          stashdbTagMap = await this.getStashdbSceneTagsBatch(stashdbEntries);
+        } catch (err) {
+          batchError = err instanceof Error ? err.message : String(err);
+          log.error({ error: batchError, wave: i / concurrency }, "stashdb_batch_failed");
+        }
+      }
+
+      // Phase 3: process all scenes in the wave concurrently
+      const waveResults = await Promise.all(
+        wave.map(async (sceneId, j) => {
+          const sceneOrErr = sceneResults[j];
+
+          if (sceneOrErr instanceof Error) {
+            return makeErrorResult(sceneId, sceneOrErr.message);
+          }
+          if (!sceneOrErr) {
+            return makeErrorResult(sceneId, "Scene not found");
+          }
+
+          const stashdbId = this.stashdbIdFor(sceneOrErr);
+
+          // Scene needs StashDB but the batch request failed
+          if (stashdbId && batchError) {
+            return makeErrorResult(
+              sceneId,
+              `StashDB fetch failed: ${batchError}`,
+              sceneOrErr.title,
+            );
+          }
+
+          const stashdbTags = stashdbTagMap.get(stashdbId) ?? [];
+          return this.processScene(
+            sceneOrErr,
+            stashdbTags,
+            localTagNames,
+            localTagMap,
+            tagAncestors,
+            dryRun,
+            rules,
+          );
+        }),
+      );
+
+      // Phase 4: emit
+      for (const result of waveResults) {
+        if (result.newTags.length || result.removedTags.length) updated++;
+        if (result.error) errors++;
+        await onResult(result);
+      }
+    }
+
+    return { updated, errors };
   }
 }

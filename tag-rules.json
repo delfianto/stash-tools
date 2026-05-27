@@ -3,7 +3,10 @@
     "description": "Lesbian = female-only; downgrade to Lesbian Action in mixed-gender scenes",
     "if": {
       "tags": {
-        "any": ["Threesome (BGG)", "Foursome (BGGG)", "Fivesome (BGGGG)", "Sixsome (BBBBGG)", "Sixsome (BBBGGG)"],
+        "any": [
+          "Threesome (BGG)", "Foursome (BGGG)", "Fivesome (BGGGG)",
+          "Sixsome (BBBBGG)", "Sixsome (BBBGGG)"
+        ],
         "all": ["Lesbian"]
       }
     },
@@ -85,7 +88,10 @@
         ]
       },
       "tags": {
-        "none": ["Threesome (BGG)", "Foursome (BGGG)", "Fivesome (BGGGG)", "Sixsome (BBBBGG)", "Sixsome (BBBGGG)"]
+        "none": [
+          "Threesome (BGG)", "Foursome (BGGG)", "Fivesome (BGGGG)",
+          "Sixsome (BBBBGG)", "Sixsome (BBBGGG)"
+        ]
       }
     },
     "then": {

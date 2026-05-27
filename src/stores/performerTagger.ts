@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { readSSE } from "@/utils/readSSE";
 import type { Performer, PerformerStatus } from "@shared/types";
 
 export const usePerformerTaggerStore = defineStore("performerTagger", () => {
@@ -77,56 +78,44 @@ export const usePerformerTaggerStore = defineStore("performerTagger", () => {
     try {
       const resp = await fetch("/performer-tagger/tag", { method: "POST", body: form });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const reader = resp.body!.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
 
-      while (true) {
-        const { done: streamDone, value } = await reader.read();
-        if (streamDone) break;
-        buf += decoder.decode(value, { stream: true });
-        const chunks = buf.split("\n\n");
-        buf = chunks.pop() ?? "";
+      await readSSE(resp, (d) => {
+        if (d["type"] === "result") {
+          done++;
+          const addedTags = (d["added_tags"] as string[] | undefined) ?? [];
+          const removedTags = (d["removed_tags"] as string[] | undefined) ?? [];
+          if (addedTags.length || removedTags.length) tagged++;
+          if (d["error"]) errors++;
 
-        for (const chunk of chunks) {
-          const line = chunk.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-          const d = JSON.parse(line.slice(6));
-
-          if (d.type === "result") {
-            done++;
-            if (d.added_tags?.length || d.removed_tags?.length) tagged++;
-            if (d.error) errors++;
-
-            const pid = String(d.performer_id);
-            if (d.error) {
-              statuses.value.set(pid, { variant: "error", text: d.error });
-            } else if (!d.added_tags?.length && !d.removed_tags?.length) {
-              statuses.value.set(pid, { variant: "muted", text: "up to date" });
-            } else {
-              const parts: string[] = [];
-              if (d.added_tags?.length) parts.push(`+${(d.added_tags as string[]).join(", ")}`);
-              if (d.removed_tags?.length) parts.push(`−${(d.removed_tags as string[]).join(", ")}`);
-              statuses.value.set(pid, {
-                variant: dryRun.value ? "dry" : "ok",
-                text: parts.join(" "),
-              });
-            }
-
-            const verb = dryRun.value ? "would update" : "updated";
-            progressText.value =
-              `${done} / ${ids.length} done` +
-              (tagged ? ` — ${tagged} ${verb}` : "") +
-              (errors ? ` — ${errors} error(s)` : "");
-          } else if (d.type === "done") {
-            const verb = dryRun.value ? "would update" : "updated";
-            progressText.value =
-              `Done — ${d.updated} ${verb}` + (d.errors ? `, ${d.errors} error(s)` : "");
-          } else if (d.type === "error") {
-            progressText.value = `Error: ${d.error}`;
+          const pid = String(d["performer_id"]);
+          if (d["error"]) {
+            statuses.value.set(pid, { variant: "error", text: String(d["error"]) });
+          } else if (!addedTags.length && !removedTags.length) {
+            statuses.value.set(pid, { variant: "muted", text: "up to date" });
+          } else {
+            const parts: string[] = [];
+            if (addedTags.length) parts.push(`+${addedTags.join(", ")}`);
+            if (removedTags.length) parts.push(`−${removedTags.join(", ")}`);
+            statuses.value.set(pid, {
+              variant: dryRun.value ? "dry" : "ok",
+              text: parts.join(" "),
+            });
           }
+
+          const verb = dryRun.value ? "would update" : "updated";
+          progressText.value =
+            `${done} / ${ids.length} done` +
+            (tagged ? ` — ${tagged} ${verb}` : "") +
+            (errors ? ` — ${errors} error(s)` : "");
+        } else if (d["type"] === "done") {
+          const verb = dryRun.value ? "would update" : "updated";
+          progressText.value =
+            `Done — ${Number(d["updated"])} ${verb}` +
+            (d["errors"] ? `, ${Number(d["errors"])} error(s)` : "");
+        } else if (d["type"] === "error") {
+          progressText.value = `Error: ${String(d["error"])}`;
         }
-      }
+      });
     } catch (err) {
       progressText.value = `Request failed: ${err instanceof Error ? err.message : String(err)}`;
     } finally {

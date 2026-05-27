@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed, watch } from "vue";
+import { readSSE } from "@/utils/readSSE";
 import type { Scene, SceneStatus } from "@shared/types";
 
 export type { Scene, SceneStatus };
@@ -32,7 +33,6 @@ export const useTaggerStore = defineStore("tagger", () => {
     [...new Set(scenes.value.flatMap((s) => s.performers))].sort(),
   );
 
-  // Filtering is server-side; filteredScenes is the current page as returned by the API
   const filteredScenes = computed(() => scenes.value);
 
   async function loadTags() {
@@ -56,7 +56,6 @@ export const useTaggerStore = defineStore("tagger", () => {
       if (performerFilter.value) params.set("performer", performerFilter.value);
       const resp = await fetch(`/api/tagger/scenes?${params}`);
       const data = await resp.json();
-      // API returns snake_case; map to camelCase Scene interface
       scenes.value = (data.scenes ?? []).map((s: Record<string, unknown>) => ({
         id: String(s["id"]),
         title: String(s["title"]),
@@ -98,68 +97,45 @@ export const useTaggerStore = defineStore("tagger", () => {
     try {
       const resp = await fetch("/tagger/tag", { method: "POST", body: form });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const reader = resp.body!.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
 
-      while (true) {
-        const { done: streamDone, value } = await reader.read();
-        if (streamDone) break;
-        buf += decoder.decode(value, { stream: true });
-        const chunks = buf.split("\n\n");
-        buf = chunks.pop() ?? "";
+      await readSSE(resp, (d) => {
+        if (d["type"] === "result") {
+          done++;
+          const newTags = (d["new_tags"] as string[] | undefined) ?? [];
+          if (newTags.length) tagged++;
+          if (d["error"]) errors++;
 
-        for (const chunk of chunks) {
-          const line = chunk.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-          const d = JSON.parse(line.slice(6));
+          const sceneId = String(d["scene_id"]);
+          const filtered = (d["filtered_out"] as string[] | undefined) ?? [];
 
-          if (d.type === "result") {
-            done++;
-            if (d.new_tags?.length) tagged++;
-            if (d.error) errors++;
-
-            const sceneId = String(d.scene_id);
-            if (d.error && d.error !== "No StashDB ID") {
-              statuses.value.set(sceneId, { variant: "error", text: d.error });
-            } else if (!d.new_tags?.length) {
-              if (d.error === "No StashDB ID") {
-                statuses.value.set(sceneId, { variant: "muted", text: "no StashDB ID" });
-              } else {
-                statuses.value.set(sceneId, {
-                  variant: "ok",
-                  text: "up to date",
-                  filtered: d.filtered_out ?? [],
-                });
-              }
-            } else if (dryRun.value) {
-              statuses.value.set(sceneId, {
-                variant: "dry",
-                text: d.new_tags.join(", "),
-                filtered: d.filtered_out ?? [],
-              });
+          if (d["error"] && d["error"] !== "No StashDB ID") {
+            statuses.value.set(sceneId, { variant: "error", text: String(d["error"]) });
+          } else if (!newTags.length) {
+            if (d["error"] === "No StashDB ID") {
+              statuses.value.set(sceneId, { variant: "muted", text: "no StashDB ID" });
             } else {
-              statuses.value.set(sceneId, {
-                variant: "ok",
-                text: d.new_tags.join(", "),
-                filtered: d.filtered_out ?? [],
-              });
+              statuses.value.set(sceneId, { variant: "ok", text: "up to date", filtered });
             }
-
-            const verb = dryRun.value ? "would tag" : "tagged";
-            progressText.value =
-              `${done} / ${ids.length} done` +
-              (tagged ? ` — ${tagged} ${verb}` : "") +
-              (errors ? ` — ${errors} error(s)` : "");
-          } else if (d.type === "done") {
-            const verb = dryRun.value ? "would tag" : "tagged";
-            progressText.value =
-              `Done — ${d.updated} ${verb}` + (d.errors ? `, ${d.errors} error(s)` : "");
-          } else if (d.type === "error") {
-            progressText.value = `Error: ${d.error}`;
+          } else if (dryRun.value) {
+            statuses.value.set(sceneId, { variant: "dry", text: newTags.join(", "), filtered });
+          } else {
+            statuses.value.set(sceneId, { variant: "ok", text: newTags.join(", "), filtered });
           }
+
+          const verb = dryRun.value ? "would tag" : "tagged";
+          progressText.value =
+            `${done} / ${ids.length} done` +
+            (tagged ? ` — ${tagged} ${verb}` : "") +
+            (errors ? ` — ${errors} error(s)` : "");
+        } else if (d["type"] === "done") {
+          const verb = dryRun.value ? "would tag" : "tagged";
+          progressText.value =
+            `Done — ${Number(d["updated"])} ${verb}` +
+            (d["errors"] ? `, ${Number(d["errors"])} error(s)` : "");
+        } else if (d["type"] === "error") {
+          progressText.value = `Error: ${String(d["error"])}`;
         }
-      }
+      });
     } catch (err) {
       progressText.value = `Request failed: ${err instanceof Error ? err.message : String(err)}`;
     } finally {

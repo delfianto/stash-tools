@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onUnmounted } from "vue";
-import { Play, Square, Tag, ChevronDown, AlertCircle } from "lucide-vue-next";
+import { onUnmounted, onMounted, ref } from "vue";
+import { Play, Square, Tag, ChevronDown } from "lucide-vue-next";
 import PageHeader from "@/components/PageHeader.vue";
 import FilterSelect from "@/components/FilterSelect.vue";
+import BatchProgress from "@/components/BatchProgress.vue";
 import { useBulkTaggerStore } from "@/stores/bulkTagger";
 import { useTaggerStore } from "@/stores/tagger";
-import { onMounted, ref } from "vue";
 
 const store = useBulkTaggerStore();
 const taggerStore = useTaggerStore();
@@ -13,17 +13,12 @@ const tagsOpen = ref(false);
 
 onMounted(() => {
   taggerStore.loadTags();
-  // Load scene list once to populate studio/performer filter options
   taggerStore.loadScenes(1);
 });
 
 onUnmounted(() => {
   if (store.running) store.stop();
 });
-
-async function startRun() {
-  await store.start();
-}
 </script>
 
 <template>
@@ -110,10 +105,9 @@ async function startRun() {
         border: 1px solid var(--color-border);
       "
     >
-      <!-- Start / Stop -->
       <button
         v-if="!store.running"
-        @click="startRun"
+        @click="store.start()"
         class="flex items-center gap-2"
         style="
           padding: 6px 16px;
@@ -190,184 +184,19 @@ async function startRun() {
       </div>
     </div>
 
-    <!-- Progress panel (shown once a run has started) -->
-    <div v-if="store.currentPage > 0 || store.running" class="mb-6 space-y-4">
-      <!-- Progress bar -->
-      <div
-        class="rounded-lg p-4"
-        style="background: var(--color-surface); border: 1px solid var(--color-border)"
-      >
-        <div class="flex items-center justify-between mb-2">
-          <span style="font-size: 13px; font-weight: 500; color: var(--color-text)">
-            <template v-if="store.running && !store.stopping">
-              Processing page {{ store.currentPage }} of {{ store.totalPages || "…" }}
-            </template>
-            <template v-else-if="store.stopping">Stopping…</template>
-            <template v-else>
-              Done — {{ store.currentPage }} of {{ store.totalPages }} pages processed
-            </template>
-          </span>
-          <span style="font-size: 12px; font-family: var(--font-mono); color: var(--color-muted)">
-            {{ store.progressPct }}%
-          </span>
-        </div>
-        <div
-          style="
-            height: 6px;
-            border-radius: 3px;
-            background: var(--color-surface-2);
-            overflow: hidden;
-          "
-        >
-          <div
-            style="
-              height: 100%;
-              border-radius: 3px;
-              background: var(--color-accent);
-              transition: width 0.3s;
-            "
-            :style="{ width: store.progressPct + '%' }"
-          />
-        </div>
-      </div>
-
-      <!-- Stats row -->
-      <div class="grid gap-3" style="grid-template-columns: repeat(4, 1fr)">
-        <div
-          v-for="stat in [
-            { label: 'Processed', value: store.processedScenes, color: 'var(--color-text)' },
-            {
-              label: store.dryRun ? 'Would Tag' : 'Tagged',
-              value: store.taggedScenes,
-              color: 'var(--color-ok)',
-            },
-            {
-              label: 'Up to Date',
-              value: store.processedScenes - store.taggedScenes - store.errorCount,
-              color: 'var(--color-muted)',
-            },
-            { label: 'Errors', value: store.errorCount, color: 'var(--color-err)' },
-          ]"
-          :key="stat.label"
-          class="rounded-lg p-3 text-center"
-          style="background: var(--color-surface); border: 1px solid var(--color-border)"
-        >
-          <div
-            style="font-size: 22px; font-weight: 700; font-family: var(--font-mono)"
-            :style="{ color: stat.color }"
-          >
-            {{ stat.value }}
-          </div>
-          <div
-            style="
-              font-size: 11px;
-              color: var(--color-muted);
-              margin-top: 2px;
-              text-transform: uppercase;
-              letter-spacing: 0.05em;
-            "
-          >
-            {{ stat.label }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Live log -->
-      <div
-        class="rounded-lg overflow-hidden"
-        style="background: var(--color-surface); border: 1px solid var(--color-border)"
-      >
-        <div
-          class="px-4 py-2 flex items-center justify-between"
-          style="
-            border-bottom: 1px solid var(--color-border);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--color-muted);
-          "
-        >
-          <span>Activity Log</span>
-          <span style="font-family: var(--font-mono)">{{ store.log.length }} entries</span>
-        </div>
-        <div style="max-height: 420px; overflow-y: auto">
-          <div
-            v-if="store.log.length === 0"
-            style="padding: 24px; text-align: center; color: var(--color-muted); font-size: 13px"
-          >
-            Waiting for results…
-          </div>
-          <table v-else style="width: 100%; border-collapse: collapse; font-size: 12px">
-            <tbody>
-              <tr
-                v-for="(entry, i) in store.log"
-                :key="i"
-                style="border-bottom: 1px solid var(--color-border)"
-              >
-                <td
-                  style="
-                    padding: 6px 12px;
-                    white-space: nowrap;
-                    color: var(--color-muted);
-                    font-family: var(--font-mono);
-                    width: 60px;
-                  "
-                >
-                  p{{ entry.page }}
-                </td>
-                <td
-                  style="
-                    padding: 6px 12px;
-                    max-width: 240px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                    color: var(--color-text-2);
-                  "
-                >
-                  {{ entry.title }}
-                </td>
-                <td style="padding: 6px 12px; white-space: nowrap">
-                  <span
-                    style="font-family: var(--font-mono)"
-                    :style="{
-                      color:
-                        entry.variant === 'ok'
-                          ? 'var(--color-ok)'
-                          : entry.variant === 'error'
-                            ? 'var(--color-err)'
-                            : entry.variant === 'dry'
-                              ? 'var(--color-accent)'
-                              : 'var(--color-muted)',
-                    }"
-                  >
-                    <template v-if="entry.variant === 'ok'">✓ </template>
-                    <template v-else-if="entry.variant === 'error'">
-                      <AlertCircle :size="11" style="display: inline; vertical-align: middle" />
-                    </template>
-                    <template v-else-if="entry.variant === 'dry'">→ </template>
-                    {{ entry.text }}
-                  </span>
-                  <span
-                    v-if="entry.filtered?.length"
-                    :title="`Filtered (parent tags): ${entry.filtered.join(', ')}`"
-                    style="
-                      margin-left: 6px;
-                      font-size: 10px;
-                      color: var(--color-muted);
-                      font-family: var(--font-mono);
-                      cursor: help;
-                    "
-                  >
-                    ({{ entry.filtered.join(", ") }} filtered)
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <BatchProgress
+      v-if="store.currentPage > 0 || store.running"
+      :running="store.running"
+      :stopping="store.stopping"
+      :current-page="store.currentPage"
+      :total-pages="store.totalPages"
+      :progress-pct="store.progressPct"
+      :processed="store.processedScenes"
+      :updated="store.taggedScenes"
+      :errors="store.errorCount"
+      :dry-run="store.dryRun"
+      :log="store.log"
+    />
 
     <!-- Idle state -->
     <div

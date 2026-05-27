@@ -4,6 +4,7 @@ import { toast } from "vue-sonner";
 import { Tag, ChevronLeft, ChevronRight, ExternalLink, ChevronDown } from "lucide-vue-next";
 import PageHeader from "@/components/PageHeader.vue";
 import FilterSelect from "@/components/FilterSelect.vue";
+import StatusBadge from "@/components/StatusBadge.vue";
 import { useTaggerStore } from "@/stores/tagger";
 
 const store = useTaggerStore();
@@ -455,35 +456,11 @@ const filterActive = computed(() => store.studioFilter || store.performerFilter)
               </td>
 
               <td style="padding: 8px 12px; min-width: 160px">
-                <span
-                  v-if="store.statuses.get(scene.id)?.variant === 'loading'"
-                  style="color: var(--color-muted); font-size: 12px; font-family: var(--font-mono)"
-                  >…</span
-                >
-                <template v-else-if="store.statuses.has(scene.id)">
-                  <span
-                    :style="{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px',
-                      color:
-                        store.statuses.get(scene.id)!.variant === 'ok'
-                          ? 'var(--color-ok)'
-                          : store.statuses.get(scene.id)!.variant === 'error'
-                            ? 'var(--color-err)'
-                            : store.statuses.get(scene.id)!.variant === 'dry'
-                              ? 'var(--color-accent)'
-                              : 'var(--color-muted)',
-                    }"
-                  >
-                    <template v-if="store.statuses.get(scene.id)!.variant === 'ok'">✓ </template>
-                    <template v-else-if="store.statuses.get(scene.id)!.variant === 'error'"
-                      >✗
-                    </template>
-                    <template v-else-if="store.statuses.get(scene.id)!.variant === 'dry'"
-                      >→
-                    </template>
-                    {{ store.statuses.get(scene.id)!.text }}
-                  </span>
+                <template v-if="store.statuses.has(scene.id)">
+                  <StatusBadge
+                    :variant="store.statuses.get(scene.id)!.variant"
+                    :text="store.statuses.get(scene.id)!.text"
+                  />
                   <span
                     v-if="store.statuses.get(scene.id)!.filtered?.length"
                     :title="`Filtered (parent tags): ${store.statuses.get(scene.id)!.filtered!.join(', ')}`"

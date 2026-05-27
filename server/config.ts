@@ -21,8 +21,8 @@ const schema = z.object({
   STASH_DB_ENDPOINT: z.string().url().default("https://stashdb.org/graphql"),
 
   // Tagger
-  STASH_TAG_RULES_FILE: z.string().default("./tag-rules.json"),
-  STASH_PERFORMER_RULES_FILE: z.string().default("./performer-rules.json"),
+  STASH_TAG_RULES_FILE: z.string().default("./rules/scene.json"),
+  STASH_PERFORMER_RULES_FILE: z.string().default("./rules/performer.json"),
 
   // Renamer
   RENAMER_SOURCE: z.string().default(""),

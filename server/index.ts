@@ -7,6 +7,9 @@ import { config } from "./config.ts";
 import { StashRenamer } from "./renamer.ts";
 import { AutoTagger } from "./tagger.ts";
 import { loadTagRules } from "./tagRules.ts";
+import { PerformerTagger } from "./performerTagger.ts";
+import { loadPerformerRules } from "./performerRules.ts";
+import { parseCupCategory } from "./measurementParser.ts";
 import type { Candidate } from "@shared/types";
 
 const log = pino({ name: "server" });
@@ -18,6 +21,7 @@ const log = pino({ name: "server" });
 const _cache = new Map<string, Candidate>();
 let _renamer: StashRenamer | null = null;
 let _tagger: AutoTagger | null = null;
+let _performerTagger: PerformerTagger | null = null;
 
 function getRenamer(): StashRenamer {
   if (!_renamer) _renamer = new StashRenamer(config);
@@ -27,6 +31,11 @@ function getRenamer(): StashRenamer {
 function getTagger(): AutoTagger {
   if (!_tagger) _tagger = new AutoTagger(config);
   return _tagger;
+}
+
+function getPerformerTagger(): PerformerTagger {
+  if (!_performerTagger) _performerTagger = new PerformerTagger(config);
+  return _performerTagger;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,35 +187,46 @@ app.post("/tagger/tag", async (c) => {
     for (const sceneId of sceneIds) {
       if (stream.aborted) break;
 
-      const scene = await tagger.getScene(sceneId);
-      if (!scene) {
-        errors++;
-        await stream.writeSSE({
-          data: JSON.stringify({
-            type: "result",
-            scene_id: sceneId,
-            scene_title: "",
-            matched: [],
-            filtered_out: [],
-            new_tags: [],
-            removed_tags: [],
-            rule_log: [],
+      let result;
+      try {
+        const scene = await tagger.getScene(sceneId);
+        if (!scene) {
+          result = {
+            sceneId,
+            sceneTitle: "",
+            stashdbId: "",
+            matchedTags: [] as string[],
+            filteredOut: [] as string[],
+            newTags: [] as string[],
+            removedTags: [] as string[],
+            ruleLog: [] as string[],
             updated: false,
-            dry_run: dryRun,
             error: "Scene not found",
-          }),
-        });
-        continue;
+          };
+        } else {
+          result = await tagger.processScene(
+            scene,
+            localTagNames,
+            localTagMap,
+            tagAncestors,
+            dryRun,
+            rules,
+          );
+        }
+      } catch (err) {
+        result = {
+          sceneId,
+          sceneTitle: "",
+          stashdbId: "",
+          matchedTags: [] as string[],
+          filteredOut: [] as string[],
+          newTags: [] as string[],
+          removedTags: [] as string[],
+          ruleLog: [] as string[],
+          updated: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
-
-      const result = await tagger.processScene(
-        scene,
-        localTagNames,
-        localTagMap,
-        tagAncestors,
-        dryRun,
-        rules,
-      );
 
       if (result.newTags.length || result.removedTags.length) updated++;
       if (result.error) errors++;
@@ -219,6 +239,124 @@ app.post("/tagger/tag", async (c) => {
           matched: result.matchedTags,
           filtered_out: result.filteredOut,
           new_tags: result.newTags,
+          removed_tags: result.removedTags,
+          rule_log: result.ruleLog,
+          updated: result.updated,
+          dry_run: dryRun,
+          error: result.error,
+        }),
+      });
+    }
+
+    await stream.writeSSE({
+      data: JSON.stringify({ type: "done", updated, errors, dry_run: dryRun }),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Performer Tagger JSON API
+// ---------------------------------------------------------------------------
+
+app.get("/api/performer-tagger/performers", async (c) => {
+  const page = Number(c.req.query("page") ?? 1);
+  const perPage = Number(c.req.query("per_page") ?? 50);
+  const country = c.req.query("country") || undefined;
+  const ethnicity = c.req.query("ethnicity") || undefined;
+
+  try {
+    const pt = getPerformerTagger();
+    const { performers, total } = await pt.getPerformersPage(page, perPage, { country, ethnicity });
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+    const mapped = performers.map((p) => ({
+      id: String(p.id),
+      name: p.name ?? `Performer ${p.id}`,
+      country: p.country ?? "",
+      ethnicity: p.ethnicity ?? "",
+      measurements: p.measurements ?? "",
+      cup_category: parseCupCategory(p.measurements ?? "") ?? "",
+      tags: (p.tags ?? []).map((t) => t.name).sort(),
+      stash_url: `${config.baseUrl}/performers/${p.id}`,
+    }));
+
+    return c.json({ performers: mapped, total, page, per_page: perPage, total_pages: totalPages });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: msg }, 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Performer Tagger SSE
+// ---------------------------------------------------------------------------
+
+app.post("/performer-tagger/tag", async (c) => {
+  const form = await c.req.formData();
+  const performerIds = form.getAll("performer_ids").map(String);
+  const dryRun = form.get("dry_run") === "1";
+
+  return streamSSE(c, async (stream) => {
+    const pt = getPerformerTagger();
+    let localTagMap: Map<string, string>;
+
+    try {
+      localTagMap = await pt.getLocalTagMap();
+    } catch (err) {
+      await stream.writeSSE({ data: JSON.stringify({ type: "error", error: String(err) }) });
+      return;
+    }
+
+    const rules = loadPerformerRules(config.performerRulesFile);
+    let updated = 0;
+    let errors = 0;
+
+    for (const performerId of performerIds) {
+      if (stream.aborted) break;
+
+      let result;
+      try {
+        const performer = await pt.getPerformer(performerId);
+        if (!performer) {
+          result = {
+            performerId,
+            performerName: "",
+            measurements: "",
+            cupCategory: "",
+            addedTags: [] as string[],
+            removedTags: [] as string[],
+            ruleLog: [] as string[],
+            updated: false,
+            error: "Performer not found",
+          };
+        } else {
+          result = await pt.processPerformer(performer, localTagMap, rules, dryRun);
+        }
+      } catch (err) {
+        result = {
+          performerId,
+          performerName: "",
+          measurements: "",
+          cupCategory: "",
+          addedTags: [] as string[],
+          removedTags: [] as string[],
+          ruleLog: [] as string[],
+          updated: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+
+      if (result.addedTags.length || result.removedTags.length) updated++;
+      if (result.error) errors++;
+
+      await stream.writeSSE({
+        data: JSON.stringify({
+          type: "result",
+          performer_id: result.performerId,
+          performer_name: result.performerName,
+          measurements: result.measurements,
+          cup_category: result.cupCategory,
+          added_tags: result.addedTags,
           removed_tags: result.removedTags,
           rule_log: result.ruleLog,
           updated: result.updated,

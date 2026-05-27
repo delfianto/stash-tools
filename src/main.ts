@@ -8,6 +8,7 @@ import "./style.css";
 import RenamerPage from "./pages/RenamerPage.vue";
 import TaggerPage from "./pages/TaggerPage.vue";
 import BulkTaggerPage from "./pages/BulkTaggerPage.vue";
+import PerformerTaggerPage from "./pages/PerformerTaggerPage.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -16,6 +17,7 @@ const router = createRouter({
     { path: "/renamer", component: RenamerPage },
     { path: "/tagger", component: TaggerPage },
     { path: "/bulk-tagger", component: BulkTaggerPage },
+    { path: "/performer-tagger", component: PerformerTaggerPage },
   ],
 });
 

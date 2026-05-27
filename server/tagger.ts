@@ -346,7 +346,7 @@ export class AutoTagger {
       (scene.tags ?? []).filter((t) => removedByRules.has(t.name)).map((t) => t.id),
     );
     const existingIds = (scene.tags ?? []).map((t) => t.id).filter((id) => !removedIds.has(id));
-    const newIds = newTagNames.map((name) => localTagMap.get(name)!);
+    const newIds = newTagNames.map((n) => localTagMap.get(n)).filter((id): id is string => !!id);
     const finalIds = [...new Set([...existingIds, ...newIds])];
 
     try {

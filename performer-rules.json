@@ -1,0 +1,65 @@
+[
+  {
+    "description": "Large cup size → Big Tits",
+    "if": { "cup_category": { "any": ["large"] } },
+    "then": { "remove": ["Small Tits", "Medium Tits"], "add": ["Big Tits"] }
+  },
+  {
+    "description": "Medium cup size → Medium Tits",
+    "if": { "cup_category": { "any": ["medium"] } },
+    "then": { "remove": ["Small Tits", "Big Tits"], "add": ["Medium Tits"] }
+  },
+  {
+    "description": "Small cup size → Small Tits",
+    "if": { "cup_category": { "any": ["small"] } },
+    "then": { "remove": ["Medium Tits", "Big Tits"], "add": ["Small Tits"] }
+  },
+  {
+    "description": "European performer",
+    "if": {
+      "country": {
+        "any": [
+          "AL", "AD", "AT", "BY", "BE", "BA", "BG", "HR", "CY", "CZ",
+          "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS", "IE", "IT",
+          "XK", "LV", "LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL",
+          "MK", "NO", "PL", "PT", "RO", "RU", "SM", "RS", "SK", "SI",
+          "ES", "SE", "CH", "UA", "GB", "VA"
+        ]
+      }
+    },
+    "then": { "add": ["European"] }
+  },
+  {
+    "description": "Remove incorrect European tag when performer is not European",
+    "if": {
+      "tags": { "any": ["European"] },
+      "country": {
+        "none": [
+          "AL", "AD", "AT", "BY", "BE", "BA", "BG", "HR", "CY", "CZ",
+          "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS", "IE", "IT",
+          "XK", "LV", "LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL",
+          "MK", "NO", "PL", "PT", "RO", "RU", "SM", "RS", "SK", "SI",
+          "ES", "SE", "CH", "UA", "GB", "VA"
+        ]
+      }
+    },
+    "then": { "remove": ["European"] }
+  },
+  {
+    "description": "Japanese performer",
+    "if": { "country": { "any": ["JP"] } },
+    "then": { "add": ["Japanese"] }
+  },
+  {
+    "description": "Latin American performer → tag as Latin",
+    "if": {
+      "country": {
+        "any": [
+          "MX", "GT", "HN", "SV", "NI", "CR", "PA", "CU", "DO", "PR",
+          "CO", "VE", "EC", "PE", "BO", "PY", "UY", "AR", "CL", "BR"
+        ]
+      }
+    },
+    "then": { "add": ["Latin"] }
+  }
+]

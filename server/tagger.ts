@@ -31,6 +31,25 @@ query FindScene($id: ID!) {
 }
 `;
 
+const QUERY_SCENE_IDS = `
+query FindSceneIds($filter: FindFilterType!) {
+  findScenes(
+    filter: $filter
+    scene_filter: {
+      stash_id_endpoint: { modifier: NOT_NULL, endpoint: "", stash_id: "" }
+    }
+  ) {
+    count
+    scenes {
+      id
+      stash_ids { stash_id endpoint }
+      studio { name }
+      performers { name }
+    }
+  }
+}
+`;
+
 const QUERY_SCENES_PAGE = `
 query FindScenesPage($filter: FindFilterType!) {
   findScenes(
@@ -196,6 +215,29 @@ export class AutoTagger {
     });
     const find = data["findScenes"] as { count?: number; scenes?: StashScene[] };
     return { scenes: find?.scenes ?? [], total: find?.count ?? 0 };
+  }
+
+  async getAllSceneIds(filters?: {
+    studio?: string;
+    performer?: string;
+  }): Promise<{ ids: string[]; total: number }> {
+    const data = await this.callGQL(QUERY_SCENE_IDS, {
+      filter: { page: 1, per_page: -1, sort: "title", direction: "ASC" },
+    });
+    const find = data["findScenes"] as {
+      count?: number;
+      scenes?: Array<{
+        id: string | number;
+        stash_ids?: Array<{ stash_id: string; endpoint: string }>;
+        studio?: { name: string } | null;
+        performers?: Array<{ name: string }>;
+      }>;
+    };
+    let all = find?.scenes ?? [];
+    if (filters?.studio) all = all.filter((s) => s.studio?.name === filters.studio);
+    if (filters?.performer)
+      all = all.filter((s) => s.performers?.some((p) => p.name === filters!.performer));
+    return { ids: all.map((s) => String(s.id)), total: all.length };
   }
 
   async getScene(sceneId: string): Promise<StashScene | null> {

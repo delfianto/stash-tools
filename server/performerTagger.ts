@@ -117,6 +117,28 @@ export class PerformerTagger {
     return { performers: all.slice(start, start + perPage), total };
   }
 
+  async getPerformerMeta(): Promise<{ countries: string[]; ethnicities: string[] }> {
+    const data = await this.callGQL(QUERY_PERFORMERS_PAGE, {
+      filter: { page: 1, per_page: -1, sort: "name", direction: "ASC" },
+    });
+    const all = (data["findPerformers"] as { performers?: RawPerformer[] })?.performers ?? [];
+    const countries = [
+      ...new Set(all.map((p) => p.country).filter((c): c is string => !!c)),
+    ].sort();
+    const ethnicities = [
+      ...new Set(all.map((p) => p.ethnicity).filter((e): e is string => !!e)),
+    ].sort();
+    return { countries, ethnicities };
+  }
+
+  async getAllPerformerIds(filters?: {
+    country?: string;
+    ethnicity?: string;
+  }): Promise<{ ids: string[]; total: number }> {
+    const { performers, total } = await this.getPerformersPage(1, Number.MAX_SAFE_INTEGER, filters);
+    return { ids: performers.map((p) => String(p.id)), total };
+  }
+
   async getPerformer(performerId: string): Promise<RawPerformer | null> {
     const data = await this.callGQL(QUERY_FIND_PERFORMER, { id: performerId });
     return (data["findPerformer"] as RawPerformer | null) ?? null;

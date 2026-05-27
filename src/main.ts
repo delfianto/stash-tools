@@ -10,6 +10,7 @@ import TaggerPage from "./pages/TaggerPage.vue";
 import BulkTaggerPage from "./pages/BulkTaggerPage.vue";
 import PerformerTaggerPage from "./pages/PerformerTaggerPage.vue";
 import BulkPerformerTaggerPage from "./pages/BulkPerformerTaggerPage.vue";
+import RulesPage from "./pages/RulesPage.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,6 +21,7 @@ const router = createRouter({
     { path: "/bulk-tagger", component: BulkTaggerPage },
     { path: "/performer-tagger", component: PerformerTaggerPage },
     { path: "/bulk-performer-tagger", component: BulkPerformerTaggerPage },
+    { path: "/rules", component: RulesPage },
   ],
 });
 

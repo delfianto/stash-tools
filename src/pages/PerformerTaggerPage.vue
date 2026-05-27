@@ -9,7 +9,9 @@ import { usePerformerTaggerStore } from "@/stores/performerTagger";
 
 const store = usePerformerTaggerStore();
 
-onMounted(() => store.loadPerformers(1));
+onMounted(() => {
+  if (!store.performers.length) store.loadPerformers(store.page);
+});
 
 const allChecked = computed(() => {
   const ps = store.performers;
@@ -123,6 +125,39 @@ const CUP_COLOR: Record<string, string> = {
       >
         {{ store.progressText }}
       </span>
+    </div>
+
+    <!-- Select-all-pages banner -->
+    <div
+      v-if="store.allOnPageSelected && store.total > store.performers.length && !store.tagging"
+      class="flex items-center justify-between mb-3 px-4 py-2 rounded-lg"
+      style="
+        background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+        font-size: 12px;
+      "
+    >
+      <span style="color: var(--color-text-2)">
+        All {{ store.performers.length }} on this page selected.
+      </span>
+      <button
+        @click="store.selectAllPages()"
+        :disabled="store.selectingAllPages"
+        style="
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 12px;
+          font-family: var(--font-sans);
+          padding: 0;
+          white-space: nowrap;
+        "
+        :style="{
+          color: store.selectingAllPages ? 'var(--color-muted)' : 'var(--color-accent)',
+        }"
+      >
+        {{ store.selectingAllPages ? "Loading…" : `Select all ${store.total} performers →` }}
+      </button>
     </div>
 
     <div

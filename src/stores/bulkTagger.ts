@@ -62,6 +62,7 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
       const id = String(d["scene_id"]);
       const title = String(d["scene_title"] ?? id);
       const newTags = (d["new_tags"] as string[] | undefined) ?? [];
+      const removedTags = (d["removed_tags"] as string[] | undefined) ?? [];
       const filteredOut = (d["filtered_out"] as string[] | undefined) ?? [];
       const error = d["error"] as string | undefined;
 
@@ -70,32 +71,18 @@ export const useBulkTaggerStore = defineStore("bulkTagger", () => {
         pushLog({ id, title, variant: "error", text: error, page });
       } else if (error === "No StashDB ID") {
         skippedScenes.value++;
-      } else if (!newTags.length) {
-        pushLog({
-          id,
-          title,
-          variant: "muted",
-          text: "up to date",
-          filtered: filteredOut,
-          page,
-        });
-      } else if (dryRun.value) {
-        taggedScenes.value++;
-        pushLog({
-          id,
-          title,
-          variant: "dry",
-          text: newTags.join(", "),
-          filtered: filteredOut,
-          page,
-        });
+      } else if (!newTags.length && !removedTags.length) {
+        pushLog({ id, title, variant: "muted", text: "up to date", filtered: filteredOut, page });
       } else {
         taggedScenes.value++;
+        const parts: string[] = [];
+        if (newTags.length) parts.push(`+${newTags.join(", ")}`);
+        if (removedTags.length) parts.push(`−${removedTags.join(", ")}`);
         pushLog({
           id,
           title,
-          variant: "ok",
-          text: newTags.join(", "),
+          variant: dryRun.value ? "dry" : "ok",
+          text: parts.join(" "),
           filtered: filteredOut,
           page,
         });

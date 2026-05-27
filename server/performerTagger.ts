@@ -3,6 +3,7 @@ import type { Config } from "./config.ts";
 import type { PerformerTagResult } from "@shared/types";
 import { parseCupCategory } from "./measurementParser.ts";
 import { applyPerformerRules, type PerformerRule } from "./performerRules.ts";
+import { withConcurrency } from "./concurrency.ts";
 import pino from "pino";
 
 const log = pino({ name: "performerTagger" });
@@ -67,6 +68,24 @@ export interface RawPerformer {
   ethnicity?: string | null;
   measurements?: string | null;
   tags?: Array<{ id: string; name: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeErrorResult(performerId: string, error: string): PerformerTagResult {
+  return {
+    performerId,
+    performerName: "",
+    measurements: "",
+    cupCategory: "",
+    addedTags: [],
+    removedTags: [],
+    ruleLog: [],
+    updated: false,
+    error,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -244,5 +263,42 @@ export class PerformerTagger {
         error: msg,
       };
     }
+  }
+
+  // Processes performers concurrently up to `concurrency` at a time.
+  // No external API batching needed — all data comes from local Stash.
+  async tagPerformers(
+    performerIds: string[],
+    localTagMap: Map<string, string>,
+    rules: PerformerRule[],
+    dryRun: boolean,
+    concurrency: number,
+    onResult: (result: PerformerTagResult) => Promise<void>,
+    isAborted: () => boolean,
+  ): Promise<{ updated: number; errors: number }> {
+    let updated = 0;
+    let errors = 0;
+
+    await withConcurrency(performerIds, concurrency, async (performerId) => {
+      if (isAborted()) return;
+
+      let result: PerformerTagResult;
+      try {
+        const performer = await this.getPerformer(performerId);
+        if (!performer) {
+          result = makeErrorResult(performerId, "Performer not found");
+        } else {
+          result = await this.processPerformer(performer, localTagMap, rules, dryRun);
+        }
+      } catch (err) {
+        result = makeErrorResult(performerId, err instanceof Error ? err.message : String(err));
+      }
+
+      if (result.addedTags.length || result.removedTags.length) updated++;
+      if (result.error) errors++;
+      await onResult(result);
+    });
+
+    return { updated, errors };
   }
 }

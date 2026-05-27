@@ -23,6 +23,7 @@ const schema = z.object({
   // Tagger
   STASH_TAG_RULES_FILE: z.string().default("./rules/scene.json"),
   STASH_PERFORMER_RULES_FILE: z.string().default("./rules/performer.json"),
+  STASH_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
 
   // Renamer
   RENAMER_SOURCE: z.string().default(""),
@@ -44,6 +45,7 @@ export const config = {
   scheme: env.STASH_SCHEME,
   tagRulesFile: env.STASH_TAG_RULES_FILE,
   performerRulesFile: env.STASH_PERFORMER_RULES_FILE,
+  concurrency: env.STASH_CONCURRENCY,
   host: env.STASH_HOST,
   port: env.STASH_PORT,
   apiKey: env.STASH_API_KEY,

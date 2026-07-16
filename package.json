@@ -13,7 +13,7 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "@vueuse/core": "^13.1.0",
+    "@vueuse/core": "^14.0.0",
     "hono": "^4.7.11",
     "lucide-vue-next": "^0.511.0",
     "pinia": "^3.0.2",

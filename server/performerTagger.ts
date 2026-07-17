@@ -96,7 +96,7 @@ export class PerformerTagger {
   private callGQL: GQLClient;
   private _localTagMap: Map<string, string> | null = null;
 
-  constructor(private readonly config: Config) {
+  constructor(config: Config) {
     this.callGQL = makeClient(config);
   }
 

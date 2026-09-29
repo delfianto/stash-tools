@@ -1,3 +1,4 @@
+import { describe, expect, test } from "vite-plus/test";
 import { parseCupCategory } from "../server/measurementParser";
 import measurements from "./measurements.json";
 

@@ -2,8 +2,6 @@
 
 > A web UI for people who are too lazy to click through Stash manually but somehow not too lazy to set up a whole separate app to avoid doing that.
 
-Built entirely by Claude (Anthropic's AI) while the human "architect" was occupied with, and I quote, _something else_. The human's contribution was approximately: opening the terminal, typing prompts, and occasionally squinting at the screen to make sure nothing exploded. The code you're reading is the result of an AI being given increasingly ambitious tasks and a human nodding along going "yeah that looks right I guess."
-
 No performers were harmed in the making of this software. Several JSON files were.
 
 ---
@@ -48,7 +46,6 @@ An in-app JSON editor for `tag-rules.json` and `performer-rules.json`. Shows a l
 | State         | [Pinia](https://pinia.vuejs.org)                                             |
 | UI components | [Reka UI](https://reka-ui.com)                                               |
 | Type checking | vue-tsc (strict mode, no `any`, no exceptions, no mercy)                     |
-| Author        | Claude Sonnet 4.6 (the AI), a human (the supervisor)                         |
 
 ---
 
@@ -168,24 +165,6 @@ You can edit them in-app via the **Rules** page without touching the filesystem 
 - **SSE progress streaming** — long-running tag operations stream results back to the browser in real time. You can watch your library get tagged like it's some kind of deranged progress bar artform.
 - **Dry-run mode everywhere** — every tagging operation supports dry run. The results display what _would_ have happened in a faint accent colour. Very tasteful. Very non-destructive.
 - **Filter persistence during bulk runs** — country/ethnicity/studio/performer filters apply to bulk operations too. The bulk tagger is not just blindly doing everything; it respects your preferences.
-
----
-
-## Authorship disclosure
-
-This codebase was written by **Claude Sonnet 4.6**, an AI assistant made by Anthropic.
-
-The human provided:
-
-- The initial feature requests
-- Occasional "yeah that looks right" approvals
-- Architectural guidance in the form of "make it like the other one"
-- The prompt "make it funny, absurd, borderline sarcastic" for this very README
-- Their hands, which were apparently busy doing something else throughout
-
-To be clear: the AI wrote the code, the human reviewed patterns and ensured sensibility. This is either the future of software development or a cautionary tale. Possibly both.
-
-If something is broken, it is unclear whose fault that is. Probably both of ours.
 
 ---
 
